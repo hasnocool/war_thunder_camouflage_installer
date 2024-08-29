@@ -64,8 +64,8 @@ zip = "0.5"
 1. **Clone the Repository**:
 
     \`\`\`bash
-    git clone https://github.com/yourusername/war-thunder-camo-installer.git
-    cd war-thunder-camo-installer
+    git clone https://github.com/hasnocool/war_thunder_camouflage_installer.git
+    cd war_thunder_camouflage_installer
     \`\`\`
 
 2. **Build the Project**:
@@ -92,11 +92,11 @@ Or run the executable directly:
 ./target/release/war_thunder_camo_installer
 \`\`\`
 
-Ensure the `war_thunder_camouflages_test.db` database is in the same directory or update the path in the source code.
+Ensure the `war_thunder_camouflages.db` database is in the same directory or update the path in the source code.
 
 ## Configuration
 
-- **Database Path**: Ensure the path to the SQLite database (`war_thunder_camouflages_test.db`) is correct. You can modify this path in the `main()` function within the source code if needed.
+- **Database Path**: Ensure the path to the SQLite database (`war_thunder_camouflages.db`) is correct. You can modify this path in the `main()` function within the source code if needed.
 - **War Thunder Skins Directory**: Set this directory from within the application to specify where downloaded camouflages should be installed.
 
 ## Usage Guide
