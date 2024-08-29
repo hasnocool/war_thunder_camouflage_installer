@@ -1,0 +1,4 @@
+### 8/28/2024
+- Removed the section containing the "Download ZIP" button.
+- Adjusted the remaining code to maintain its functionality and layout.
+- Wrapped the image display section inside egui::ScrollArea::vertical(). This enables vertical scrolling for the images if they are too large to fit in the visible window area.

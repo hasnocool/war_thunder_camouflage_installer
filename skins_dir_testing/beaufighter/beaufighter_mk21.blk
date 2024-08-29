@@ -1,0 +1,21 @@
+name:t="user"
+
+replace_tex{
+  from:t="beaufighter_mk21_a*"
+  to:t="beaufighter_mk21_a.dds"
+}
+
+replace_tex{
+  from:t="beaufighter_mk21_a_dmg*"
+  to:t="beaufighter_mk21_a_dmg.dds"
+}
+
+replace_tex{
+  from:t="beaufighter_mk21_n*"
+  to:t="beaufighter_mk21_n.dds"
+}
+
+replace_tex{
+  from:t="beaufighter_mk21_n_dmg*"
+  to:t="beaufighter_mk21_n_dmg.dds"
+}
