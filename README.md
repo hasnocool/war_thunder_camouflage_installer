@@ -4,7 +4,7 @@ NOTE: You may need git-lfs installed in order to download the database with git,
 
 THE DATABASE WAS LAST UPDATED 8/29/2024
 
-# War Thunder Camouflage Installer
+If you like what you see and would like to support a struggling developer my buymeacoffee.com like can be found here [SUPPORT ME](buymeacoffee.com/hasnocool)
 
 ## Table of Contents
 
