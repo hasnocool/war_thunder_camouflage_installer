@@ -1,5 +1,7 @@
 ![War Thunder Camouflage Installer Logo](https://github.com/hasnocool/war_thunder_camouflage_installer/blob/master/assets/logo.png?raw=true)
 
+NOTE: You may need git-lfs installed in order to download the database with git, otherwise you will have to manually download it and ensure it is in the same directory as the exe.
+
 # War Thunder Camouflage Installer
 
 ## Table of Contents
