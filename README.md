@@ -2,6 +2,8 @@
 
 NOTE: You may need git-lfs installed in order to download the database with git, otherwise you will have to manually download it and ensure it is in the same directory as the exe.
 
+THE DATABASE WAS LAST UPDATED 8/29/2024
+
 # War Thunder Camouflage Installer
 
 ## Table of Contents
