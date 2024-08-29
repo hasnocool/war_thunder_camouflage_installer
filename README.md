@@ -77,10 +77,11 @@ zip = "0.5"
 ```bash
    
     cargo build --release
-   
-```
 
-    This command will compile the project and generate an executable in the `target/release` directory.
+```   
+
+
+This command will compile the project and generate an executable in the `target/release` directory.
 
 ## Running the Application
 
