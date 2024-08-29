@@ -4,6 +4,8 @@ NOTE: You may need git-lfs installed in order to download the database with git,
 
 THE DATABASE WAS LAST UPDATED 8/29/2024
 
+![preview-v1 0 1-beta](https://github.com/user-attachments/assets/4f9a3d37-1a89-4afd-9b36-06bd5f37799f)
+
 If you like what you see and would like to support a struggling developer, my [Buy Me a Coffee](https://buymeacoffee.com/hasnocool) link can be found here.
 
 ## Table of Contents
