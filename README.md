@@ -4,7 +4,7 @@ NOTE: You may need git-lfs installed in order to download the database with git,
 
 THE DATABASE WAS LAST UPDATED 8/29/2024
 
-If you like what you see and would like to support a struggling developer my buymeacoffee.com like can be found here [buymeacoffee.com/hasnocool](SUPPORT ME)
+If you like what you see and would like to support a struggling developer, my [Buy Me a Coffee](https://buymeacoffee.com/hasnocool) link can be found here.
 
 ## Table of Contents
 
