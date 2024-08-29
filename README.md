@@ -62,12 +62,12 @@ zip = "0.5"
 
 1. **Clone the Repository**:
 
-    \`\`\`bash
+```bash
    
     git clone https://github.com/hasnocool/war_thunder_camouflage_installer.git
     cd war_thunder_camouflage_installer
    
-    \`\`\`
+```
 
 3. **Build the Project**:
 
