@@ -405,7 +405,7 @@ impl eframe::App for WarThunderCamoInstaller {
 
 fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions::default();
-    let db_path = Path::new("war_thunder_camouflages_test.db");
+    let db_path = Path::new("war_thunder_camouflages.db");
     
     println!("Attempting to create WarThunderCamoInstaller...");
     match WarThunderCamoInstaller::new(db_path) {
