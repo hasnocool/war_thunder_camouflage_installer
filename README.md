@@ -28,6 +28,8 @@ NOTE: You may need git-lfs installed in order to download the database with git,
 
 The **War Thunder Camouflage Installer** is a Rust-based desktop application designed to enhance the experience of War Thunder players by allowing them to easily browse, search, and install custom camouflages for their vehicles. The application leverages the power of Rust's GUI library, `eframe` and `egui`, to provide a seamless user interface and experience.
 
+![preview](https://github.com/user-attachments/assets/53ebbf1d-682d-47a9-b806-efca75656cb7)
+
 ## Features
 
 - **Intuitive Search**: Search through the database of camouflages using keywords that match vehicle names, descriptions, or hashtags.
