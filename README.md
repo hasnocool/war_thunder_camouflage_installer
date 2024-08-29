@@ -47,8 +47,6 @@ To build and run this project, ensure the following are installed on your system
 
 Add these dependencies to your `Cargo.toml` file:
 
-\`\`\`toml
-
 [dependencies]
 eframe = "0.14"
 egui = "0.14"
@@ -59,7 +57,6 @@ reqwest = { version = "0.11", features = ["blocking"] }
 tempfile = "3.3"
 zip = "0.5"
 
-\`\`\`
 
 ## Building the Project
 
