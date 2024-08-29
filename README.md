@@ -48,6 +48,7 @@ To build and run this project, ensure the following are installed on your system
 Add these dependencies to your `Cargo.toml` file:
 
 \`\`\`toml
+
 [dependencies]
 eframe = "0.14"
 egui = "0.14"
@@ -57,6 +58,7 @@ rfd = "0.10"
 reqwest = { version = "0.11", features = ["blocking"] }
 tempfile = "3.3"
 zip = "0.5"
+
 \`\`\`
 
 ## Building the Project
@@ -64,16 +66,20 @@ zip = "0.5"
 1. **Clone the Repository**:
 
     \`\`\`bash
+   
     git clone https://github.com/hasnocool/war_thunder_camouflage_installer.git
     cd war_thunder_camouflage_installer
+   
     \`\`\`
 
-2. **Build the Project**:
+3. **Build the Project**:
 
     Use Cargo to build the project in release mode for optimized performance:
 
     \`\`\`bash
+   
     cargo build --release
+   
     \`\`\`
 
     This command will compile the project and generate an executable in the `target/release` directory.
@@ -83,13 +89,17 @@ zip = "0.5"
 After building the project, you can run the application using Cargo or directly from the executable:
 
 \`\`\`bash
+
 cargo run --release
+
 \`\`\`
 
 Or run the executable directly:
 
 \`\`\`bash
+
 ./target/release/war_thunder_camo_installer
+
 \`\`\`
 
 Ensure the `war_thunder_camouflages.db` database is in the same directory or update the path in the source code.
