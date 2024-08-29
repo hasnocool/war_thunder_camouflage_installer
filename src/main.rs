@@ -2,10 +2,12 @@ use eframe::egui;
 use rusqlite::{Connection, Result};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
+use std::thread;
 use image::{codecs::png::PngEncoder, ImageEncoder};
 use rfd::FileDialog;
 use reqwest;
 use tempfile::Builder;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 struct Camouflage {
@@ -25,7 +27,7 @@ struct WarThunderCamoInstaller {
     current_camo: Option<Camouflage>,
     image_receiver: Receiver<(String, Vec<u8>)>,
     image_sender: Sender<(String, Vec<u8>)>,
-    images: std::collections::HashMap<String, egui::TextureHandle>,
+    images: HashMap<String, egui::TextureHandle>,
     error_message: Option<String>,
     search_query: String,
     current_index: usize,
@@ -45,7 +47,7 @@ impl WarThunderCamoInstaller {
             current_camo: None,
             image_receiver,
             image_sender,
-            images: std::collections::HashMap::new(),
+            images: HashMap::new(),
             error_message: None,
             search_query: String::new(),
             current_index: 0,
@@ -115,43 +117,45 @@ impl WarThunderCamoInstaller {
             self.loading_images = true;
             for url in &camo.image_urls {
                 if !self.images.contains_key(url) {
-                    self.load_image(url.clone());
+                    // Load images in parallel using threads
+                    let sender_clone = self.image_sender.clone();
+                    let url_clone = url.clone();
+                    thread::spawn(move || {
+                        WarThunderCamoInstaller::load_image(sender_clone, url_clone);
+                    });
                 }
             }
         }
     }
 
-    fn load_image(&self, url: String) {
+    fn load_image(sender: Sender<(String, Vec<u8>)>, url: String) {
         println!("Attempting to load image from URL: {}", url);
-        let sender = self.image_sender.clone();
         let url_clone = url.clone();
-        ehttp::fetch(ehttp::Request::get(&url), move |result| {
-            match result {
-                Ok(response) => {
-                    match image::load_from_memory(&response.bytes) {
-                        Ok(image) => {
-                            let mut buffer = Vec::new();
-                            if PngEncoder::new(&mut buffer)
-                                .write_image(
-                                    image.to_rgba8().as_raw(),
-                                    image.width(),
-                                    image.height(),
-                                    image::ColorType::Rgba8
-                                )
-                                .is_ok()
-                            {
-                                let _ = sender.send((url_clone.clone(), buffer));
-                                println!("Successfully loaded and encoded image from URL: {}", url_clone);
-                            } else {
-                                println!("Failed to encode image from URL: {}", url_clone);
-                            }
-                        },
-                        Err(e) => println!("Failed to load image from memory: {}", e),
-                    }
-                },
-                Err(e) => println!("Failed to fetch image from URL: {}", e),
-            }
-        });
+        match reqwest::blocking::get(&url) {
+            Ok(response) => {
+                match image::load_from_memory(&response.bytes().unwrap()) {
+                    Ok(image) => {
+                        let mut buffer = Vec::new();
+                        if PngEncoder::new(&mut buffer)
+                            .write_image(
+                                image.to_rgba8().as_raw(),
+                                image.width(),
+                                image.height(),
+                                image::ColorType::Rgba8
+                            )
+                            .is_ok()
+                        {
+                            let _ = sender.send((url_clone.clone(), buffer));
+                            println!("Successfully loaded and encoded image from URL: {}", url_clone);
+                        } else {
+                            println!("Failed to encode image from URL: {}", url_clone);
+                        }
+                    },
+                    Err(e) => println!("Failed to load image from memory: {}", e),
+                }
+            },
+            Err(e) => println!("Failed to fetch image from URL: {}", e),
+        }
     }
 
     fn install_skin(&self, zip_url: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -308,11 +312,13 @@ impl eframe::App for WarThunderCamoInstaller {
 
             ui.horizontal(|ui| {
                 ui.label("War Thunder skins directory:");
-                if let Some(wt_skins_dir) = &mut self.wt_skins_dir {
-                    let skins_dir_string = wt_skins_dir.to_str().unwrap_or_default().to_string();
-                    if ui.text_edit_singleline(&mut skins_dir_string.clone()).changed() {
-                        self.wt_skins_dir = Some(PathBuf::from(skins_dir_string));
-                    }
+                let mut skins_dir_string = self
+                    .wt_skins_dir
+                    .as_ref()
+                    .map(|p| p.to_str().unwrap_or_default().to_string())
+                    .unwrap_or_default();
+                if ui.text_edit_singleline(&mut skins_dir_string).changed() {
+                    self.wt_skins_dir = Some(PathBuf::from(skins_dir_string.clone()));
                 }
                 if ui.button("Browse").clicked() {
                     if let Some(path) = FileDialog::new().pick_folder() {
@@ -336,7 +342,7 @@ impl eframe::App for WarThunderCamoInstaller {
             });
 
             if let Some(camo) = &self.current_camo {
-                let zip_file_url = camo.zip_file_url.clone(); // Clone the zip_file_url to avoid the borrow checker error
+                let zip_file_url = camo.zip_file_url.clone();
                 ui.heading(&camo.vehicle_name);
                 ui.label(&camo.description);
                 ui.label(format!("File size: {}", camo.file_size));
@@ -356,32 +362,30 @@ impl eframe::App for WarThunderCamoInstaller {
 
                 ui.add_space(10.0);
 
-                ui.horizontal_wrapped(|ui| {
-                    for url in camo.image_urls.iter().skip(1) {
-                        if let Some(texture) = self.images.get(url) {
-                            let size = texture.size_vec2();
-                            let aspect_ratio = size.x / size.y;
-                            let display_size = if self.is_initial_view {
-                                size
-                            } else {
-                                let available_width = ui.available_width();
-                                let max_width = available_width.min(250.0);
-                                egui::vec2(max_width, max_width / aspect_ratio)
-                            };
-                            ui.add(egui::Image::new(texture, display_size));
-                            ui.add_space(10.0);
-                        } else if self.loading_images {
-                            ui.add(egui::Spinner::new().size(32.0));
-                            ui.add_space(10.0);
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        for url in camo.image_urls.iter().skip(1) {
+                            if let Some(texture) = self.images.get(url) {
+                                let size = texture.size_vec2();
+                                let aspect_ratio = size.x / size.y;
+                                let display_size = if self.is_initial_view {
+                                    size
+                                } else {
+                                    let available_width = ui.available_width();
+                                    let max_width = available_width.min(250.0);
+                                    egui::vec2(max_width, max_width / aspect_ratio)
+                                };
+                                ui.add(egui::Image::new(texture, display_size));
+                                ui.add_space(10.0);
+                            } else if self.loading_images {
+                                ui.add(egui::Spinner::new().size(32.0));
+                                ui.add_space(10.0);
+                            }
                         }
-                    }
+                    });
                 });
 
                 ui.horizontal(|ui| {
-                    if ui.button("Download ZIP").clicked() {
-                        println!("Download ZIP clicked for URL: {}", zip_file_url);
-                        // TODO: Implement actual download functionality
-                    }
                     if ui.button("Install").clicked() {
                         if let Err(e) = self.install_skin(&zip_file_url) {
                             self.error_message = Some(format!("Failed to install skin: {}", e));
