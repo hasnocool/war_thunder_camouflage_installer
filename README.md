@@ -1,3 +1,5 @@
+![War Thunder Camouflage Installer Logo](https://github.com/hasnocool/war_thunder_camouflage_installer/blob/master/assets/logo.png?raw=true)
+
 # War Thunder Camouflage Installer
 
 ## Table of Contents
