@@ -2,3 +2,28 @@
 - Removed the section containing the "Download ZIP" button.
 - Adjusted the remaining code to maintain its functionality and layout.
 - Wrapped the image display section inside egui::ScrollArea::vertical(). This enables vertical scrolling for the images if they are too large to fit in the visible window area.
+- Parallel Image Loading: The load_current_camo_images function now spawns a new thread for each image URL that needs to be loaded using std::thread::spawn.
+- Static load_image Function: Changed load_image to be a standalone function (now accepts sender as an argument) so it can be called within a thread without needing to borrow the entire self instance.
+- Blocking Image Fetching: Used reqwest::blocking::get to fetch images in the load_image function.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
