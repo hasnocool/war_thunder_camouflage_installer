@@ -5,7 +5,7 @@ NOTE: Images may take a second to appear as they are being pulled from WT-LIVE w
 
 THE DATABASE WAS LAST UPDATED 8/29/2024
 
-If you like what you see and would like to support a struggling developer, my [Buy Me a Coffee](https://buymeacoffee.com/hasnocool) link can be found here.
+
 
 ## Table of Contents
 
