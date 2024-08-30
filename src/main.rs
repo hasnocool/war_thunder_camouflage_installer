@@ -6,8 +6,10 @@ use std::thread;
 use image::{codecs::png::PngEncoder, ImageEncoder};
 use rfd::FileDialog;
 use reqwest;
-use tempfile::Builder;
 use std::collections::HashMap;
+use std::fs;
+use std::io;
+use zip::ZipArchive;
 
 #[derive(Clone, Debug)]
 struct Camouflage {
@@ -21,6 +23,15 @@ struct Camouflage {
     num_likes: i32,
     post_date: String,
     nickname: String,
+}
+
+#[derive(thiserror::Error, Debug)]
+enum InstallerError {
+    #[error("SQLite error: {0}")]
+    SqliteError(#[from] rusqlite::Error),
+
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
 }
 
 struct WarThunderCamoInstaller {
@@ -39,15 +50,24 @@ struct WarThunderCamoInstaller {
     is_initial_view: bool,
     wt_skins_dir: Option<PathBuf>,
     custom_structure: String,
-    use_custom_structure: bool, // Toggle for using custom structure
+    use_custom_structure: bool,
+    show_import_popup: bool,
+    cache_dir: PathBuf,
+    selected_import_dir: Option<PathBuf>, // New field for storing the selected directory
 }
 
 impl WarThunderCamoInstaller {
-    fn new(db_path: &Path) -> Result<Self> {
+    fn new(db_path: &Path) -> Result<Self, InstallerError> {
         println!("Attempting to open database at: {:?}", db_path);
         let db_conn = Connection::open(db_path)?;
         let (image_sender, image_receiver) = channel();
         let (install_sender, install_receiver) = channel();
+
+        let cache_dir = PathBuf::from("cache");
+        if !cache_dir.exists() {
+            fs::create_dir_all(&cache_dir)?;
+        }
+
         let mut installer = Self {
             db_conn,
             current_camo: None,
@@ -64,13 +84,16 @@ impl WarThunderCamoInstaller {
             is_initial_view: true,
             wt_skins_dir: None,
             custom_structure: "%USERSKINS/%NICKNAME/%SKIN_NAME - %VEHICLE".to_string(),
-            use_custom_structure: true, // Default to true
+            use_custom_structure: true,
+            show_import_popup: false,
+            cache_dir,
+            selected_import_dir: None, // Initialize with None
         };
         installer.update_total_camos()?;
         Ok(installer)
     }
 
-    fn update_total_camos(&mut self) -> Result<()> {
+    fn update_total_camos(&mut self) -> Result<(), InstallerError> {
         let count: i64 = self.db_conn.query_row(
             "SELECT COUNT(*) FROM camouflages",
             [],
@@ -80,7 +103,7 @@ impl WarThunderCamoInstaller {
         Ok(())
     }
 
-    fn fetch_camouflage(&mut self, index: usize) -> Result<Option<Camouflage>> {
+    fn fetch_camouflage(&mut self, index: usize) -> Result<Option<Camouflage>, InstallerError> {
         let mut stmt = self.db_conn.prepare(
             "SELECT vehicle_name, description, image_urls, zip_file_url, hashtags, file_size, num_downloads, num_likes, post_date, nickname 
             FROM camouflages 
@@ -110,8 +133,8 @@ impl WarThunderCamoInstaller {
                 nickname: row.get(9)?,
             })
         })?;
-
-        let camo = camo_iter.collect::<Result<Vec<_>>>()?.into_iter().next();
+    
+        let camo = camo_iter.collect::<Result<Vec<_>, rusqlite::Error>>()?.into_iter().next();
         if camo.is_some() {
             self.current_index = index;
         }
@@ -130,18 +153,38 @@ impl WarThunderCamoInstaller {
                 if !self.images.contains_key(url) {
                     let sender_clone = self.image_sender.clone();
                     let url_clone = url.clone();
+                    let cache_dir = self.cache_dir.clone();
                     thread::spawn(move || {
-                        WarThunderCamoInstaller::load_image(sender_clone, url_clone);
+                        WarThunderCamoInstaller::load_image(sender_clone, url_clone, cache_dir);
                     });
                 }
             }
         }
     }
 
-    fn load_image(sender: Sender<(String, Vec<u8>)>, url: String) {
+    fn load_image(sender: Sender<(String, Vec<u8>)>, url: String, cache_dir: PathBuf) {
         println!("Attempting to load image from URL: {}", url);
-        let url_clone = url.clone();
-        thread::spawn(move || {
+        let filename = url.split('/').last().unwrap_or("default.png");
+        let cache_path = cache_dir.join(filename);
+
+        if cache_path.exists() {
+            println!("Loading image from cache: {:?}", cache_path);
+            if let Ok(image) = image::open(&cache_path) {
+                let mut buffer = Vec::new();
+                if PngEncoder::new(&mut buffer)
+                    .write_image(
+                        image.to_rgba8().as_raw(),
+                        image.width(),
+                        image.height(),
+                        image::ColorType::Rgba8
+                    )
+                    .is_ok()
+                {
+                    let _ = sender.send((url.clone(), buffer));
+                    println!("Successfully loaded and encoded image from cache: {:?}", cache_path);
+                }
+            }
+        } else {
             match reqwest::blocking::get(&url) {
                 Ok(response) => {
                     match image::load_from_memory(&response.bytes().unwrap()) {
@@ -156,10 +199,11 @@ impl WarThunderCamoInstaller {
                                 )
                                 .is_ok()
                             {
-                                let _ = sender.send((url_clone.clone(), buffer));
-                                println!("Successfully loaded and encoded image from URL: {}", url_clone);
+                                image.save(&cache_path).unwrap_or_else(|e| println!("Failed to save image to cache: {}", e));
+                                let _ = sender.send((url.clone(), buffer));
+                                println!("Successfully loaded and encoded image from URL: {}", url);
                             } else {
-                                println!("Failed to encode image from URL: {}", url_clone);
+                                println!("Failed to encode image from URL: {}", url);
                             }
                         },
                         Err(e) => println!("Failed to load image from memory: {}", e),
@@ -167,7 +211,7 @@ impl WarThunderCamoInstaller {
                 },
                 Err(e) => println!("Failed to fetch image from URL: {}", e),
             }
-        });
+        }
     }
 
     fn install_skin(&mut self, zip_url: &str) {
@@ -178,72 +222,16 @@ impl WarThunderCamoInstaller {
             let custom_structure = self.custom_structure.clone();
             let current_camo = self.current_camo.clone().unwrap();
             let install_sender = self.install_sender.clone();
-            let use_custom_structure = self.use_custom_structure; // Capture current toggle state
+            let use_custom_structure = self.use_custom_structure;
+            let cache_dir = self.cache_dir.clone();
 
-            // Always install in the background
             thread::spawn(move || {
-                let result = Self::download_and_extract_skin(zip_url, skins_directory, custom_structure, &current_camo, use_custom_structure);
+                let result = WarThunderCamoInstaller::download_and_extract_skin(zip_url, skins_directory, custom_structure, &current_camo, use_custom_structure, cache_dir);
                 let _ = install_sender.send(result.map_err(|e| e.to_string()));
             });
         } else {
             self.error_message = Some("War Thunder skins directory not selected".to_string());
         }
-    }
-
-    fn download_and_extract_skin(
-        zip_url: String,
-        skins_directory: PathBuf,
-        custom_structure: String,
-        camo: &Camouflage,
-        use_custom_structure: bool,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let response = reqwest::blocking::get(&zip_url)?;
-        let zip_content = response.bytes()?;
-
-        let temp_dir = Builder::new().prefix("wt_skin_").tempdir()?;
-        let zip_path = temp_dir.path().join("skin.zip");
-        std::fs::write(&zip_path, &zip_content)?;
-
-        println!("Unzipping skin to appropriate directory structure");
-        let file = std::fs::File::open(&zip_path)?;
-        let mut archive = zip::ZipArchive::new(file)?;
-
-        let out_dir = if use_custom_structure {
-            Self::generate_custom_path(&skins_directory, &custom_structure, camo)
-        } else {
-            skins_directory.join(&camo.vehicle_name) // Default path if custom structure is not used
-        };
-        std::fs::create_dir_all(&out_dir)?;
-
-        for i in 0..archive.len() {
-            let mut file = archive.by_index(i)?;
-            let outpath = out_dir.join(file.mangled_name());
-
-            if (&*file.name()).ends_with('/') {
-                std::fs::create_dir_all(&outpath)?;
-            } else {
-                if let Some(p) = outpath.parent() {
-                    if !p.exists() {
-                        std::fs::create_dir_all(p)?;
-                    }
-                }
-                let mut outfile = std::fs::File::create(&outpath)?;
-                std::io::copy(&mut file, &mut outfile)?;
-            }
-        }
-
-        temp_dir.close()?;
-        Ok(())
-    }
-
-    fn generate_custom_path(base_dir: &PathBuf, custom_structure: &str, camo: &Camouflage) -> PathBuf {
-        let mut path = custom_structure.to_string();
-        path = path.replace("%USERSKINS", base_dir.to_str().unwrap());
-        path = path.replace("%NICKNAME", &camo.nickname);
-        path = path.replace("%SKIN_NAME", &camo.vehicle_name);
-        path = path.replace("%VEHICLE", &camo.vehicle_name);
-
-        PathBuf::from(path)
     }
 
     fn perform_search(&mut self) {
@@ -257,12 +245,12 @@ impl WarThunderCamoInstaller {
                 self.error_message = Some("No results found".to_string());
             }
             Err(e) => {
-                self.error_message = Some(format!("Search error: {}", e));
+                self.error_message = Some(format!("Search error: {:?}", e));
             }
         }
     }
 
-    fn search_camouflages(&self, query: &str) -> Result<Option<(usize, Camouflage)>> {
+    fn search_camouflages(&self, query: &str) -> Result<Option<(usize, Camouflage)>, InstallerError> {
         let query = query.to_lowercase();
         let words: Vec<&str> = query.split_whitespace().collect();
         
@@ -312,9 +300,109 @@ impl WarThunderCamoInstaller {
             }))
         })?;
 
-        Ok(camo_iter.collect::<Result<Vec<_>>>()?.into_iter().next())
+        Ok(camo_iter.collect::<Result<Vec<_>, rusqlite::Error>>()?.into_iter().next())
+    }
+
+    fn download_and_extract_skin(
+        zip_url: String,
+        skins_directory: PathBuf,
+        custom_structure: String,
+        camo: &Camouflage,
+        use_custom_structure: bool,
+        cache_dir: PathBuf,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let filename = zip_url.split('/').last().unwrap_or("default.zip");
+        let cache_path = cache_dir.join(filename);
+
+        if cache_path.exists() {
+            println!("Using cached zip file: {:?}", cache_path);
+        } else {
+            let response = reqwest::blocking::get(&zip_url)?;
+            let zip_content = response.bytes()?;
+            std::fs::write(&cache_path, &zip_content)?;
+        }
+
+        println!("Unzipping skin to appropriate directory structure");
+        let file = std::fs::File::open(&cache_path)?;
+        let mut archive = zip::ZipArchive::new(file)?;
+
+        let out_dir = if use_custom_structure {
+            WarThunderCamoInstaller::generate_custom_path(&skins_directory, &custom_structure, camo)
+        } else {
+            skins_directory.join(&camo.vehicle_name)
+        };
+        std::fs::create_dir_all(&out_dir)?;
+
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i)?;
+            let outpath = out_dir.join(file.mangled_name());
+
+            if (&*file.name()).ends_with('/') {
+                std::fs::create_dir_all(&outpath)?;
+            } else {
+                if let Some(p) = outpath.parent() {
+                    if !p.exists() {
+                        std::fs::create_dir_all(p)?;
+                    }
+                }
+                let mut outfile = std::fs::File::create(&outpath)?;
+                std::io::copy(&mut file, &mut outfile)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn generate_custom_path(base_dir: &PathBuf, custom_structure: &str, camo: &Camouflage) -> PathBuf {
+        let mut path = custom_structure.to_string();
+        path = path.replace("%USERSKINS", base_dir.to_str().unwrap());
+        path = path.replace("%NICKNAME", &camo.nickname);
+        path = path.replace("%SKIN_NAME", &camo.vehicle_name);
+        path = path.replace("%VEHICLE", &camo.vehicle_name);
+
+        PathBuf::from(path)
     }
 }
+
+// Updated global function for importing skins
+fn import_local_skin(
+    _skins_directory: &PathBuf,  // Prefix with an underscore to suppress the warning
+    selected_import_dir: &PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let file_path = FileDialog::new()
+        .add_filter("Archive", &["zip", "rar"])
+        .pick_file()
+        .ok_or("No file selected for import")?;
+
+    println!("Importing skin from {:?}", file_path);
+    let file = fs::File::open(&file_path)?;
+    let mut archive = ZipArchive::new(file)?;
+
+    let out_dir = selected_import_dir.clone(); // Use the selected directory
+
+    fs::create_dir_all(&out_dir)?;
+
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)?;
+        let outpath = out_dir.join(file.mangled_name());
+
+        if file.name().ends_with('/') {
+            fs::create_dir_all(&outpath)?;
+        } else {
+            if let Some(p) = outpath.parent() {
+                if !p.exists() {
+                    fs::create_dir_all(p)?;
+                }
+            }
+            let mut outfile = fs::File::create(&outpath)?;
+            io::copy(&mut file, &mut outfile)?;
+        }
+    }
+
+    println!("Skin imported successfully to {:?}", out_dir);
+    Ok(())
+}
+
 
 impl eframe::App for WarThunderCamoInstaller {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -332,46 +420,45 @@ impl eframe::App for WarThunderCamoInstaller {
                         );
                         self.images.insert(url, texture);
                     }
-                },
+                }
                 Err(TryRecvError::Empty) => {
                     self.loading_images = false;
                     break;
-                },
+                }
                 Err(TryRecvError::Disconnected) => {
                     println!("Image receiver disconnected");
                     self.loading_images = false;
                     break;
-                },
+                }
             }
         }
 
-        // Handle installation completion status
         match self.install_receiver.try_recv() {
-            Ok(result) => {
-                match result {
-                    Ok(_) => self.error_message = Some("Skin installed successfully!".to_string()),
-                    Err(e) => self.error_message = Some(format!("Failed to install skin: {}", e)),
-                }
-            }
+            Ok(result) => match result {
+                Ok(_) => self.error_message = Some("Skin installed successfully!".to_string()),
+                Err(e) => self.error_message = Some(format!("Failed to install skin: {}", e)),
+            },
             Err(TryRecvError::Empty) => {}
             Err(TryRecvError::Disconnected) => println!("Install receiver disconnected"),
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("War Thunder Camouflage Installer");
-
+        
             ui.horizontal(|ui| {
                 ui.label("Search:");
                 let response = ui.text_edit_singleline(&mut self.search_query);
-                if ui.button("Search").clicked() || (response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
+                if ui.button("Search").clicked()
+                    || (response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
+                {
                     self.perform_search();
                 }
             });
-
+        
             if let Some(error) = &self.error_message {
                 ui.colored_label(egui::Color32::RED, error);
             }
-
+        
             ui.horizontal(|ui| {
                 ui.label("War Thunder skins directory:");
                 let mut skins_dir_string = self
@@ -388,18 +475,26 @@ impl eframe::App for WarThunderCamoInstaller {
                     }
                 }
             });
-
+        
             ui.horizontal(|ui| {
                 ui.label("Custom Structure:");
-                if ui.text_edit_singleline(&mut self.custom_structure).changed() {
-                    // Custom structure changed
-                }
-                ui.label("Legend: %USERSKINS = Base directory, %NICKNAME = Creator's nickname, %SKIN_NAME = Skin name, %VEHICLE = Vehicle name");
+                if ui.text_edit_singleline(&mut self.custom_structure).changed() {}
+                ui.label(
+                    "Legend: %USERSKINS = Base directory, %NICKNAME = Creator's nickname, %SKIN_NAME = Skin name, %VEHICLE = Vehicle name",
+                );
             });
-
-            // Toggle for using custom structure
-            ui.checkbox(&mut self.use_custom_structure, "Use custom directory structure");
-
+        
+            ui.checkbox(
+                &mut self.use_custom_structure,
+                "Use custom directory structure",
+            );
+        
+            ui.horizontal(|ui| {
+                if ui.button("Import Local Skin").clicked() {
+                    self.show_import_popup = true;
+                }
+            });
+        
             ui.horizontal(|ui| {
                 if ui.button("Previous").clicked() && self.current_index > 0 {
                     if let Ok(Some(camo)) = self.fetch_camouflage(self.current_index - 1) {
@@ -413,7 +508,7 @@ impl eframe::App for WarThunderCamoInstaller {
                     }
                 }
             });
-
+        
             if let Some(camo) = &self.current_camo {
                 let zip_file_url = camo.zip_file_url.clone();
                 ui.heading(&camo.vehicle_name);
@@ -423,7 +518,7 @@ impl eframe::App for WarThunderCamoInstaller {
                 ui.label(format!("Hashtags: {}", camo.hashtags.join(", ")));
                 ui.label(format!("Downloads: {}", camo.num_downloads));
                 ui.label(format!("Likes: {}", camo.num_likes));
-
+        
                 if let Some(avatar_url) = camo.image_urls.first() {
                     if let Some(texture) = self.images.get(avatar_url) {
                         let size = texture.size_vec2();
@@ -432,9 +527,9 @@ impl eframe::App for WarThunderCamoInstaller {
                         ui.label("Loading avatar...");
                     }
                 }
-
+        
                 ui.add_space(10.0);
-
+        
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     ui.horizontal_wrapped(|ui| {
                         for url in camo.image_urls.iter().skip(1) {
@@ -457,18 +552,58 @@ impl eframe::App for WarThunderCamoInstaller {
                         }
                     });
                 });
-
+        
                 ui.horizontal(|ui| {
                     if ui.button("Install").clicked() {
                         self.install_skin(&zip_file_url);
                     }
                 });
-
+        
                 self.is_initial_view = false;
             } else {
                 ui.label("No camouflage selected");
             }
         });
+
+        let mut close_popup = false;
+
+        if self.show_import_popup {
+            egui::Window::new("Import Local Skin")
+                .open(&mut self.show_import_popup)
+                .show(ctx, |ui| {
+                    ui.label("Select directory for importing skins:");
+                    if ui.button("Browse").clicked() {
+                        if let Some(path) = FileDialog::new().pick_folder() {
+                            self.selected_import_dir = Some(path);
+                        }
+                    }
+
+                    if let Some(selected_dir) = &self.selected_import_dir {
+                        ui.label(format!("Selected directory: {}", selected_dir.display()));
+                    }
+
+                    if ui.button("Import").clicked() {
+                        if let Some(selected_import_dir) = &self.selected_import_dir {
+                            let result = import_local_skin(
+                                &self.wt_skins_dir.as_ref().unwrap_or(&PathBuf::from(".")),
+                                selected_import_dir,
+                            );
+                            if let Err(e) = result {
+                                self.error_message = Some(format!("Failed to import skin: {}", e));
+                            } else {
+                                self.error_message = Some("Local skin imported successfully!".to_string());
+                            }
+                        } else {
+                            self.error_message = Some("No directory selected for import.".to_string());
+                        }
+                        close_popup = true;
+                    }
+                });
+        }
+
+        if close_popup {
+            self.show_import_popup = false;
+        }
 
         if self.loading_images {
             ctx.request_repaint();
@@ -491,7 +626,7 @@ fn main() -> Result<(), eframe::Error> {
             )
         },
         Err(e) => {
-            eprintln!("Failed to initialize the application: {}", e);
+            eprintln!("Failed to initialize the application: {:?}", e);
             eprintln!("Make sure the database file exists at: {:?}", db_path);
             Ok(())
         }
