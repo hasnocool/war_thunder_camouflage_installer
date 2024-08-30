@@ -1,3 +1,20 @@
+### 8/29/2024
+- Implemented permanent image caching across sessions.
+- Added a "Clear Cache" option in the File menu to allow users to delete cached images.
+- Improved image loading process to save downloaded images directly to the cache.
+- Added an "About" popup window with developer information and a circular avatar image.
+- Implemented a more granular circular avatar rendering in the About popup.
+- Added support for importing local skins with a new "Import Local Skin" option in the File menu.
+- Implemented a popup window for the local skin import process.
+- Added avatar loading functionality from the assets folder.
+- Improved error handling and user feedback for various operations.
+- Implemented a custom directory structure option for skin installation.
+- Added a checkbox to toggle the use of custom directory structure.
+- Implemented search functionality for camouflages.
+- Added Previous and Next buttons for navigating through camouflages.
+- Displayed additional information for each camouflage (file size, post date, hashtags, downloads, likes).
+- Implemented dynamic resizing of displayed images based on available width.
+
 ### 8/28/2024
 - Removed the section containing the "Download ZIP" button.
 - Adjusted the remaining code to maintain its functionality and layout.
