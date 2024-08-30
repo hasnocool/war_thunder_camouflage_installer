@@ -52,8 +52,10 @@ struct WarThunderCamoInstaller {
     custom_structure: String,
     use_custom_structure: bool,
     show_import_popup: bool,
+    show_about_popup: bool,  // Field for managing About popup
     cache_dir: PathBuf,
-    selected_import_dir: Option<PathBuf>, // New field for storing the selected directory
+    selected_import_dir: Option<PathBuf>, // Field for storing the selected directory
+    avatar_texture: Option<egui::TextureHandle>, // Field to store the avatar texture
 }
 
 impl WarThunderCamoInstaller {
@@ -86,8 +88,10 @@ impl WarThunderCamoInstaller {
             custom_structure: "%USERSKINS/%NICKNAME/%SKIN_NAME - %VEHICLE".to_string(),
             use_custom_structure: true,
             show_import_popup: false,
+            show_about_popup: false,  // Initialize with false
             cache_dir,
             selected_import_dir: None, // Initialize with None
+            avatar_texture: None, // Initialize with None
         };
         installer.update_total_camos()?;
         Ok(installer)
@@ -187,31 +191,54 @@ impl WarThunderCamoInstaller {
         } else {
             match reqwest::blocking::get(&url) {
                 Ok(response) => {
-                    match image::load_from_memory(&response.bytes().unwrap()) {
-                        Ok(image) => {
-                            let mut buffer = Vec::new();
-                            if PngEncoder::new(&mut buffer)
-                                .write_image(
-                                    image.to_rgba8().as_raw(),
-                                    image.width(),
-                                    image.height(),
-                                    image::ColorType::Rgba8
-                                )
-                                .is_ok()
-                            {
-                                image.save(&cache_path).unwrap_or_else(|e| println!("Failed to save image to cache: {}", e));
-                                let _ = sender.send((url.clone(), buffer));
-                                println!("Successfully loaded and encoded image from URL: {}", url);
+                    match response.bytes() {
+                        Ok(bytes) => {
+                            // Save the image to cache
+                            if let Err(e) = std::fs::write(&cache_path, &bytes) {
+                                println!("Failed to save image to cache: {}", e);
                             } else {
-                                println!("Failed to encode image from URL: {}", url);
+                                println!("Image saved to cache: {:?}", cache_path);
+                            }
+
+                            // Load the image and send it
+                            if let Ok(image) = image::load_from_memory(&bytes) {
+                                let mut buffer = Vec::new();
+                                if PngEncoder::new(&mut buffer)
+                                    .write_image(
+                                        image.to_rgba8().as_raw(),
+                                        image.width(),
+                                        image.height(),
+                                        image::ColorType::Rgba8
+                                    )
+                                    .is_ok()
+                                {
+                                    let _ = sender.send((url.clone(), buffer));
+                                    println!("Successfully loaded and encoded image from URL: {}", url);
+                                } else {
+                                    println!("Failed to encode image from URL: {}", url);
+                                }
+                            } else {
+                                println!("Failed to load image from memory");
                             }
                         },
-                        Err(e) => println!("Failed to load image from memory: {}", e),
+                        Err(e) => println!("Failed to get image bytes: {}", e),
                     }
                 },
                 Err(e) => println!("Failed to fetch image from URL: {}", e),
             }
         }
+    }
+
+    fn clear_cache(&self) -> std::io::Result<()> {
+        for entry in std::fs::read_dir(&self.cache_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_file() {
+                std::fs::remove_file(path)?;
+            }
+        }
+        println!("Cache cleared successfully");
+        Ok(())
     }
 
     fn install_skin(&mut self, zip_url: &str) {
@@ -362,6 +389,24 @@ impl WarThunderCamoInstaller {
 
         PathBuf::from(path)
     }
+
+    // Load avatar image from assets
+    fn load_avatar_image(&mut self, ctx: &egui::Context) {
+        let avatar_path = Path::new("assets/avatar.jpg");
+        if avatar_path.exists() {
+            if let Ok(image) = image::open(avatar_path) {
+                let size = [image.width() as _, image.height() as _];
+                let image_buffer = image.to_rgba8();
+                let pixels = image_buffer.as_flat_samples();
+                let texture = ctx.load_texture(
+                    "avatar",
+                    egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),
+                    egui::TextureOptions::default(),
+                );
+                self.avatar_texture = Some(texture);
+            }
+        }
+    }
 }
 
 // Updated global function for importing skins
@@ -403,9 +448,39 @@ fn import_local_skin(
     Ok(())
 }
 
-
 impl eframe::App for WarThunderCamoInstaller {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Load avatar image once
+        if self.avatar_texture.is_none() {
+            self.load_avatar_image(ctx);
+        }
+
+        // Updated menu bar
+        egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                ui.menu_button("File", |ui| {
+                    if ui.button("Import Local Skin").clicked() {
+                        self.show_import_popup = true;
+                        ui.close_menu();
+                    }
+                    if ui.button("Clear Cache").clicked() {
+                        if let Err(e) = self.clear_cache() {
+                            self.error_message = Some(format!("Failed to clear cache: {}", e));
+                        } else {
+                            self.error_message = Some("Cache cleared successfully".to_string());
+                        }
+                        ui.close_menu();
+                    }
+                });
+                ui.menu_button("About", |ui| {
+                    if ui.button("About").clicked() {
+                        self.show_about_popup = true;
+                        ui.close_menu();
+                    }
+                });
+            });
+        });
+
         loop {
             match self.image_receiver.try_recv() {
                 Ok((url, image_data)) => {
@@ -565,6 +640,51 @@ impl eframe::App for WarThunderCamoInstaller {
             }
         });
 
+// "About" popup window
+if self.show_about_popup {
+    egui::Window::new("About War Thunder Camouflage Installer")
+        .open(&mut self.show_about_popup)
+        .show(ctx, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.heading("War Thunder Camouflage Installer");
+                ui.label("Created by: hasnocool");
+                ui.hyperlink_to("Visit my GitHub", "https://github.com/hasnocool");
+                ui.label("Email: hasnocool@outlook.com");
+
+                if let Some(avatar) = &self.avatar_texture {
+                    let size = avatar.size_vec2() / 4.0; // Scale down the image
+                    let radius = size.x.min(size.y) / 2.0; // Compute radius for circle clipping
+                    let rect = ui.allocate_exact_size(size, egui::Sense::hover()).0;
+
+                    // Draw circle filled with avatar image
+                    let mut mesh = egui::Mesh::with_texture(avatar.id());
+                    let n = 100; // Increased number of vertices for a smoother circle
+                    for i in 0..=n {
+                        let angle = i as f32 * std::f32::consts::TAU / n as f32;
+                        let (sin, cos) = angle.sin_cos();
+                        let offset = egui::Vec2::new(cos, sin) * radius;
+                        let uv = (offset / radius + egui::Vec2::new(1.0, 1.0)) * 0.5;
+                        
+                        mesh.vertices.push(egui::epaint::Vertex {
+                            pos: rect.center() + offset,
+                            uv: egui::pos2(uv.x, uv.y),
+                            color: egui::Color32::WHITE,
+                        });
+                    }
+
+                    // Use triangle fan for more efficient rendering
+                    for i in 1..n {
+                        mesh.indices.push(0);
+                        mesh.indices.push(i as u32);
+                        mesh.indices.push((i + 1) as u32);
+                    }
+
+                    ui.painter().add(egui::Shape::mesh(mesh));
+                }
+            });
+        });
+}
+
         let mut close_popup = false;
 
         if self.show_import_popup {
@@ -632,3 +752,4 @@ fn main() -> Result<(), eframe::Error> {
         }
     }
 }
+
