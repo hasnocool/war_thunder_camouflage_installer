@@ -104,7 +104,8 @@ def generate_commit_message_with_ollama():
         }
         
         # Send the POST request to the Ollama API
-        response = requests.post(f"{OLLAMA_API_URL}/api/generate", json=payload)
+        headers = {'Content-Type': 'application/json'}
+        response = requests.post(f"{OLLAMA_API_URL}/api/generate", json=payload, headers=headers)
         response.raise_for_status()  # Raise an exception for HTTP errors
         
         # Parse the JSON response
