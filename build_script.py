@@ -99,7 +99,7 @@ def generate_commit_message_with_ollama():
         # Construct the request payload based on the working curl command
         payload = {
             "model": "llama3",
-            "prompt": "Generate a commit message for a software project update.",
+            "prompt": "Generate a concise and descriptive commit message summarizing recent updates and changes to a software project.",
             "stream": False
         }
         
