@@ -108,6 +108,9 @@ def generate_commit_message_with_ollama():
         response = requests.post(f"{OLLAMA_API_URL}/api/generate", json=payload, headers=headers)
         response.raise_for_status()  # Raise an exception for HTTP errors
         
+        # Print the raw response for debugging
+        print(f"Raw response from Ollama: {response.text}")
+        
         # Parse the JSON response
         commit_message = response.json().get("text", "").strip()
         logger.info(f"Generated commit message: {commit_message}")
@@ -115,6 +118,7 @@ def generate_commit_message_with_ollama():
     except requests.RequestException as e:
         logger.error(f"Error generating commit message with Ollama: {e}")
         return None
+
 
 def get_project_info():
     try:
