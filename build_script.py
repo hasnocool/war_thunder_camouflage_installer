@@ -6,8 +6,6 @@ import argparse
 import logging
 import shutil
 import toml
-import re
-import requests
 from packaging import version
 
 # Configuration
@@ -27,7 +25,7 @@ def run_command(command, verbose=False):
 
 def check_dependencies(auto_confirm=False):
     logger.info("Checking for required dependencies...")
-    for cmd in ['git --version', 'cargo --version']:
+    for cmd in ['git --version', 'cargo --version', 'gh --version']:
         code, output, error = run_command(cmd, verbose=True)
         if code != 0:
             logger.error(f"Dependency check failed for command: {cmd}. Error: {error}")
@@ -93,25 +91,14 @@ def copy_executable(auto_confirm=False):
         return False
 
 def get_latest_github_version():
-    url = "https://api.github.com/repos/{owner}/{repo}/releases/latest"  # Dynamic owner/repo retrieval based on git remote
-    remote_url = subprocess.check_output(["git", "config", "--get", "remote.origin.url"], text=True).strip()
-    match = re.search(r'github.com[:/](.*?)/(.*?)(\.git)?$', remote_url)
-    if match:
-        owner, repo = match.groups()[:2]
-        url = f"https://api.github.com/repos/{owner}/{repo}/releases/latest"
-    else:
-        logger.error("Failed to parse repository URL from git remote.")
+    logger.info("Fetching the latest GitHub release version using the gh CLI...")
+    code, output, error = run_command("gh release view --json tagName -q .tagName", verbose=True)
+    if code != 0:
+        logger.error(f"Failed to fetch the latest release version from GitHub: {error}")
         return None
-
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        latest_version = response.json()['tag_name'].lstrip('v')
-        logger.info(f"Latest GitHub release version: {latest_version}")
-        return latest_version
-    except requests.RequestException as e:
-        logger.error(f"Failed to fetch the latest release version from GitHub: {e}")
-        return None
+    latest_version = output.strip().lstrip('v')
+    logger.info(f"Latest GitHub release version: {latest_version}")
+    return latest_version
 
 def determine_version_bump(changed_files):
     cargo_toml_changed = any('Cargo.toml' in file for file in changed_files)
