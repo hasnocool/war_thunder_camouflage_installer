@@ -14,8 +14,8 @@ from packaging import version
 CARGO_BUILD_OPTIONS = "--release -j50"
 DEFAULT_BUILD_INTERVAL = 3600  # 1 hour
 CONFIG_FILE = "config.ini"
-OLLAMA_MODEL = "llama3.1"
-OLLAMA_API_URL = "http://192.168.1.223:11434/v1"  # Assuming Ollama is running locally on this port
+OLLAMA_MODEL = "llama3"
+OLLAMA_API_URL = "http://192.168.1.223:11434"  # Assuming Ollama is running locally on this port
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -96,8 +96,18 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
 
 def generate_commit_message_with_ollama():
     try:
-        response = requests.post(f"{OLLAMA_API_URL}/generate", json={"model": OLLAMA_MODEL, "prompt": "Generate a commit message for a software project update."})
-        response.raise_for_status()
+        # Construct the request payload based on the working curl command
+        payload = {
+            "model": "llama3",
+            "prompt": "Generate a commit message for a software project update.",
+            "stream": False
+        }
+        
+        # Send the POST request to the Ollama API
+        response = requests.post(f"{OLLAMA_API_URL}/api/generate", json=payload)
+        response.raise_for_status()  # Raise an exception for HTTP errors
+        
+        # Parse the JSON response
         commit_message = response.json().get("text", "").strip()
         logger.info(f"Generated commit message: {commit_message}")
         return commit_message
@@ -350,5 +360,3 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
         sys.exit(1)
-
-
