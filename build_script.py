@@ -6,6 +6,8 @@ import argparse
 import logging
 import shutil
 import toml
+import re
+from packaging import version
 
 # Configuration
 CARGO_BUILD_OPTIONS = "--release -j50"
@@ -76,22 +78,50 @@ def copy_executable():
         logger.error(f"Failed to copy executable: {e}")
         return False
 
-def get_current_version():
+def get_latest_tag():
+    code, output, error = run_command("git describe --tags --abbrev=0")
+    if code != 0:
+        logger.error(f"Failed to get latest tag: {error}")
+        return None
+    return output.strip()
+
+def increment_version(version_str):
+    v = version.parse(version_str)
+    if isinstance(v, version.Version):
+        major, minor, patch = v.major, v.minor, v.micro
+        return f"{major}.{minor}.{patch + 1}-beta"
+    else:
+        # If it's not a valid version, just append -1 to the string
+        return f"{version_str}-1"
+
+def update_cargo_toml(new_version):
     try:
         with open("Cargo.toml", "r") as f:
-            cargo_toml = toml.load(f)
-        return cargo_toml['package']['version']
+            content = f.read()
+        
+        new_content = re.sub(r'version\s*=\s*"[^"]+"', f'version = "{new_version}"', content)
+        
+        with open("Cargo.toml", "w") as f:
+            f.write(new_content)
+        
+        logger.info(f"Updated Cargo.toml with new version: {new_version}")
+        return True
     except Exception as e:
-        logger.error(f"Failed to read version from Cargo.toml: {e}")
-        return None
-
-def create_release():
-    version = get_current_version()
-    if not version:
+        logger.error(f"Failed to update Cargo.toml: {e}")
         return False
 
-    logger.info(f"Creating release v{version}...")
-    code, output, error = run_command(f'git tag -a v{version} -m "Release v{version}"')
+def create_release():
+    latest_tag = get_latest_tag()
+    if latest_tag:
+        new_version = increment_version(latest_tag.lstrip('v'))
+    else:
+        new_version = "1.0.0-beta"
+
+    if not update_cargo_toml(new_version):
+        return False
+
+    logger.info(f"Creating release v{new_version}...")
+    code, output, error = run_command(f'git tag -a v{new_version} -m "Release v{new_version}"')
     if code != 0:
         logger.error(f"Failed to create git tag: {error}")
         return False
@@ -101,7 +131,7 @@ def create_release():
         logger.error(f"Failed to push git tag: {error}")
         return False
 
-    logger.info(f"Release v{version} created and pushed successfully")
+    logger.info(f"Release v{new_version} created and pushed successfully")
     return True
 
 def prompt_for_release():
