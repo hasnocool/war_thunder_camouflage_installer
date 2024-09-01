@@ -6,7 +6,6 @@ import argparse
 import logging
 
 # Configuration
-PROJECT_PATH = "C:\\Users\\flesh\\wtci"
 CARGO_BUILD_OPTIONS = "--release -j50"
 DEFAULT_BUILD_INTERVAL = 3600  # 1 hour
 
@@ -16,9 +15,9 @@ logger = logging.getLogger(__name__)
 
 def run_command(command):
     logger.info(f"Running command: {command}")
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
     output, error = process.communicate()
-    return process.returncode, output.decode('utf-8'), error.decode('utf-8')
+    return process.returncode, output, error
 
 def check_dependencies():
     logger.info("Checking for required dependencies...")
@@ -48,34 +47,31 @@ def git_commit_and_push():
 
 def build_cycle():
     logger.info(f"Starting build cycle at {time.strftime('%Y-%m-%d %H:%M:%S')}")
-
-    # Change to the project directory
-    os.chdir(PROJECT_PATH)
-
+    
     # Pull latest changes
     code, output, error = git_pull()
     if code != 0:
         logger.error(f"Failed to pull latest changes: {error}")
         return False
-
+    
     # Build the project
     code, output, error = cargo_build()
     if code != 0:
         logger.error(f"Build failed: {error}")
         return False
-
+    
     # Run tests
     code, output, error = cargo_test()
     if code != 0:
         logger.error(f"Tests failed: {error}")
         return False
-
+    
     # If we got here, everything succeeded. Commit and push.
     code, output, error = git_commit_and_push()
     if code != 0:
         logger.error(f"Failed to commit and push: {error}")
         return False
-
+    
     logger.info("Build cycle completed successfully!")
     return True
 
@@ -84,10 +80,8 @@ def main(daemon_mode, build_interval):
     
     while True:
         success = build_cycle()
-
         if not daemon_mode:
             sys.exit(0 if success else 1)
-
         logger.info(f"Waiting for next build cycle. Next build at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time() + build_interval))}")
         time.sleep(build_interval)
 
