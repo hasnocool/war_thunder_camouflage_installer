@@ -6,7 +6,7 @@ import argparse
 import logging
 
 # Configuration
-PROJECT_PATH = "C:\\Users\\flesh\\war_thunder_camouflage_installer"
+PROJECT_PATH = "C:\\Users\\flesh\\wtci"
 CARGO_BUILD_OPTIONS = "--release -j50"
 DEFAULT_BUILD_INTERVAL = 3600  # 1 hour
 

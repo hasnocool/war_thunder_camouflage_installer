@@ -4,6 +4,8 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::path::{Path, PathBuf};
 use std::collections::{HashMap, VecDeque};
 use image::GenericImageView;
+use rayon::prelude::*;
+use std::sync::mpsc;
 use crate::{
     data::{Camouflage, InstallerError},
     database,
@@ -32,7 +34,6 @@ pub struct WarThunderCamoInstaller {
     use_custom_structure: bool,
     show_import_popup: bool,
     show_about_popup: bool,
-    cache_dir: PathBuf,
     selected_import_dir: Option<PathBuf>,
     avatar_texture: Option<egui::TextureHandle>,
     show_custom_structure_popup: bool,
@@ -43,13 +44,13 @@ impl WarThunderCamoInstaller {
         let db_conn = rusqlite::Connection::open(db_path)?;
         let (image_sender, image_receiver) = std::sync::mpsc::channel();
         let (_install_sender, install_receiver) = std::sync::mpsc::channel();
-
+    
         let total_camos = database::update_total_camos(&db_conn)?;
-
+    
         let images = Arc::new(Mutex::new(HashMap::new()));
         let loading_images = Arc::new(Mutex::new(false));
         let image_load_queue = Arc::new(Mutex::new(VecDeque::new()));
-
+    
         let mut installer = Self {
             db_conn,
             current_camo: None,
@@ -69,20 +70,20 @@ impl WarThunderCamoInstaller {
             use_custom_structure: true,
             show_import_popup: false,
             show_about_popup: false,
-            cache_dir: PathBuf::from("cache"),
+            //cache_dir: image_utils::get_cache_dir(), // Use the get_cache_dir() function here
             selected_import_dir: None,
             avatar_texture: None,
             show_custom_structure_popup: false,
             image_load_queue,
         };
-
+    
         // Load the first camouflage on startup
         if let Ok(Some((index, camo))) = installer.fetch_camouflage_by_index(0) {
             installer.set_current_camo(index, camo);
         } else {
             installer.error_message = Some("Failed to load the initial camouflage.".to_string());
         }
-
+    
         Ok(installer)
     }
 
@@ -240,46 +241,57 @@ impl WarThunderCamoInstaller {
         }
     }
 
-    fn update_image_grid(&self, ctx: &egui::Context) {
-        let mut loading = self.loading_images.lock().unwrap();
-        if *loading {
-            return;
-        }
 
-        let mut queue = self.image_load_queue.lock().unwrap();
-        if let Some(url) = queue.pop_front() {
-            *loading = true;
-            let sender_clone = self.image_sender.clone();
-            let cache_dir_clone = self.cache_dir.clone();
-            let images = self.images.clone();
-            let loading_images = self.loading_images.clone();
-            let ctx = ctx.clone();
-
-            std::thread::spawn(move || {
-                if let Ok(()) = image_utils::load_image(sender_clone.clone(), url.clone(), cache_dir_clone.clone()) {
-                    if let Ok(image_data) = std::fs::read(cache_dir_clone.join(url.split('/').last().unwrap())) {
-                        if let Ok(dynamic_image) = image::load_from_memory(&image_data) {
-                            let (width, height) = dynamic_image.dimensions();
-                            let rgba_image = dynamic_image.to_rgba8();
-                            let image = egui::ColorImage::from_rgba_unmultiplied(
-                                [width as usize, height as usize],
-                                rgba_image.as_raw(),
-                            );
-                            ctx.request_repaint();
-                            let texture = ctx.load_texture(
-                                url.clone(),
-                                image,
-                                egui::TextureOptions::default(),
-                            );
-                            images.lock().unwrap().insert(url, texture);
-                        }
-                    }
-                }
-                *loading_images.lock().unwrap() = false;
-            });
-        }
+fn update_image_grid(&self, ctx: &egui::Context) {
+    let mut loading = self.loading_images.lock().unwrap();
+    if *loading {
+        return;
     }
 
+    let mut queue = self.image_load_queue.lock().unwrap();
+    if queue.is_empty() {
+        return;
+    }
+
+    *loading = true;
+    let urls: Vec<String> = queue.drain(..).collect();
+    let images = self.images.clone();
+    let ctx = ctx.clone();
+    let loading_images = self.loading_images.clone();
+
+    std::thread::spawn(move || {
+        let (tx, rx) = mpsc::channel();
+        let tx = Arc::new(Mutex::new(tx));
+
+        urls.par_iter().for_each_with(tx.clone(), |tx, url: &String| {
+            if let Ok(image_data) = image_utils::load_image(url.clone()) {
+                if let Ok(dynamic_image) = image::load_from_memory(&image_data) {
+                    let (width, height) = dynamic_image.dimensions();
+                    let rgba_image = dynamic_image.to_rgba8();
+                    let image = egui::ColorImage::from_rgba_unmultiplied(
+                        [width as usize, height as usize],
+                        rgba_image.as_raw(),
+                    );
+                    let _ = tx.lock().unwrap().send((url.clone(), image));
+                }
+            }
+        });
+
+        drop(tx); // This is now safe to drop
+
+        for (url, image) in rx {
+            ctx.request_repaint();
+            let texture = ctx.load_texture(
+                url.clone(),
+                image,
+                egui::TextureOptions::default(),
+            );
+            images.lock().unwrap().insert(url, texture);
+        }
+
+        *loading_images.lock().unwrap() = false;
+    });
+}
     fn show_custom_structure_popup(&mut self, ctx: &egui::Context) {
         if self.show_custom_structure_popup {
             egui::Window::new("Custom Structure Settings")
@@ -394,7 +406,7 @@ impl eframe::App for WarThunderCamoInstaller {
                         ui.close_menu();
                     }
                     if ui.button("Clear Cache").clicked() {
-                        if let Err(e) = image_utils::clear_cache(&self.cache_dir) {
+                        if let Err(e) = image_utils::clear_cache() {
                             self.error_message = Some(format!("Failed to clear cache: {}", e));
                         } else {
                             self.error_message = Some("Cache cleared successfully".to_string());
