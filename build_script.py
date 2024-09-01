@@ -4,6 +4,8 @@ import sys
 import time
 import argparse
 import logging
+import shutil
+import toml
 
 # Configuration
 CARGO_BUILD_OPTIONS = "--release -j50"
@@ -45,6 +47,35 @@ def git_commit_and_push():
     run_command('git commit -m "Automated build commit"')
     return run_command("git push")
 
+def get_project_name():
+    try:
+        with open("Cargo.toml", "r") as f:
+            cargo_toml = toml.load(f)
+        return cargo_toml['package']['name']
+    except Exception as e:
+        logger.error(f"Failed to read project name from Cargo.toml: {e}")
+        return None
+
+def copy_executable():
+    logger.info("Copying executable to current directory...")
+    project_name = get_project_name()
+    if not project_name:
+        return False
+    
+    source_path = os.path.join("target", "release", f"{project_name}.exe")
+    
+    if not os.path.exists(source_path):
+        logger.error(f"Executable not found at {source_path}")
+        return False
+    
+    try:
+        shutil.copy(source_path, ".")
+        logger.info(f"Executable copied successfully: {project_name}.exe")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to copy executable: {e}")
+        return False
+
 def build_cycle():
     logger.info(f"Starting build cycle at {time.strftime('%Y-%m-%d %H:%M:%S')}")
     
@@ -58,6 +89,10 @@ def build_cycle():
     code, output, error = cargo_build()
     if code != 0:
         logger.error(f"Build failed: {error}")
+        return False
+    
+    # Copy the executable
+    if not copy_executable():
         return False
     
     # Run tests
