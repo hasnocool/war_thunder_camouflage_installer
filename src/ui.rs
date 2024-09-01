@@ -165,22 +165,40 @@ impl WarThunderCamoInstaller {
             return;
         }
 
-        ui.label("Camouflage Images:");
+        // Get the avatar image URL to skip in the grid
+        let avatar_url = self.current_camo.as_ref().map(|camo| &camo.image_urls[0]);
+
+        let available_width = ui.available_width();
+        let image_width = 150.0; // Desired width for each image in the grid
+        let num_columns = (available_width / image_width).floor() as usize;
+        let mut columns_filled = 0;
 
         egui::Grid::new("image_grid")
-            .num_columns(3)
+            .num_columns(num_columns)
             .spacing([10.0, 10.0])
             .striped(true)
             .show(ui, |ui| {
-                for (_url, texture_handle) in images.iter() {
+                for (url, texture_handle) in images.iter() {
+                    // Skip the avatar image
+                    if Some(url) == avatar_url {
+                        continue;
+                    }
+
                     let size = texture_handle.size_vec2();
-                    let aspect_ratio = size.x / size.y;
-                    let desired_height = 200.0;
-                    let desired_width = desired_height * aspect_ratio;
+                    let (width, height) = (size.x, size.y);
 
-                    ui.add(egui::Image::new(texture_handle.id(), [desired_width, desired_height]));
+                    // Adjust image size to fit within the grid cell while maintaining aspect ratio
+                    let aspect_ratio = width / height;
+                    let scaled_width = image_width;
+                    let scaled_height = scaled_width / aspect_ratio;
 
-                    ui.end_row();
+                    ui.add(egui::Image::new(texture_handle.id(), [scaled_width, scaled_height]));
+
+                    columns_filled += 1;
+                    if columns_filled >= num_columns {
+                        ui.end_row();
+                        columns_filled = 0;
+                    }
                 }
             });
     }
@@ -289,6 +307,26 @@ impl WarThunderCamoInstaller {
             Err(InstallerError::Custom("War Thunder skins directory not selected".to_string()))
         }
     }
+
+    fn show_next_camo(&mut self) {
+        if self.current_index < self.total_camos - 1 {
+            if let Ok(Some((index, camo))) = self.fetch_camouflage(&(self.current_index + 1).to_string()) {
+                self.set_current_camo(index, camo);
+            } else {
+                self.error_message = Some("Failed to load the next camouflage.".to_string());
+            }
+        }
+    }
+
+    fn show_previous_camo(&mut self) {
+        if self.current_index > 0 {
+            if let Ok(Some((index, camo))) = self.fetch_camouflage(&(self.current_index - 1).to_string()) {
+                self.set_current_camo(index, camo);
+            } else {
+                self.error_message = Some("Failed to load the previous camouflage.".to_string());
+            }
+        }
+    }
 }
 
 impl eframe::App for WarThunderCamoInstaller {
@@ -379,6 +417,13 @@ impl eframe::App for WarThunderCamoInstaller {
                         let camo_clone = camo.clone();
                         ui.heading(&camo_clone.vehicle_name);
                         ui.label(&camo_clone.description);
+
+                        // Display the avatar (first image)
+                        if let Some(avatar_texture) = self.images.lock().unwrap().get(&camo_clone.image_urls[0]) {
+                            let size = avatar_texture.size_vec2();
+                            ui.image(avatar_texture.id(), size);
+                        }
+
                         ui.label(format!("Nickname: {}", camo_clone.nickname));
                         ui.label(format!("File size: {}", camo_clone.file_size));
                         ui.label(format!("Posted on: {}", camo_clone.post_date));
@@ -386,8 +431,8 @@ impl eframe::App for WarThunderCamoInstaller {
                         ui.label(format!("Downloads: {}", camo_clone.num_downloads));
                         ui.label(format!("Likes: {}", camo_clone.num_likes));
 
-                        ui.separator();  // Add a separator before showing the images
-                        self.show_image_grid(ui);  // Show images as a grid
+                        ui.separator();  // Add a separator before showing the images grid
+                        self.show_image_grid(ui);  // Show images as a responsive grid
 
                     } else {
                         ui.label("No camouflage selected");
@@ -412,18 +457,14 @@ impl eframe::App for WarThunderCamoInstaller {
                             }
                         }
 
-                        if ui.button("Previous").clicked() && self.current_index > 0 {
-                            if let Ok(Some((index, camo))) = self.fetch_camouflage(&(self.current_index - 1).to_string()) {
-                                self.set_current_camo(index, camo);
-                            }
+                        if ui.button("Previous").clicked() {
+                            self.show_previous_camo();
                         }
 
                         ui.label(format!("{}/{}", self.current_index + 1, self.total_camos));
 
-                        if ui.button("Next").clicked() && self.current_index < self.total_camos - 1 {
-                            if let Ok(Some((index, camo))) = self.fetch_camouflage(&(self.current_index + 1).to_string()) {
-                                self.set_current_camo(index, camo);
-                            }
+                        if ui.button("Next").clicked() {
+                            self.show_next_camo();
                         }
                     }
                 });
