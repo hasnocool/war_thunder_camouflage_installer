@@ -49,18 +49,18 @@ def git_commit_and_push():
     run_command('git commit -m "Automated build commit"')
     return run_command("git push")
 
-def get_project_name():
+def get_project_info():
     try:
         with open("Cargo.toml", "r") as f:
             cargo_toml = toml.load(f)
-        return cargo_toml['package']['name']
+        return cargo_toml['package']['name'], cargo_toml['package']['version']
     except Exception as e:
-        logger.error(f"Failed to read project name from Cargo.toml: {e}")
-        return None
+        logger.error(f"Failed to read project info from Cargo.toml: {e}")
+        return None, None
 
 def copy_executable():
     logger.info("Copying executable to current directory...")
-    project_name = get_project_name()
+    project_name, _ = get_project_info()
     if not project_name:
         return False
     
@@ -85,11 +85,41 @@ def get_latest_tag():
         return None
     return output.strip()
 
-def increment_version(version_str):
+def get_changed_files(last_tag):
+    code, output, error = run_command(f"git diff --name-only {last_tag}..HEAD")
+    if code != 0:
+        logger.error(f"Failed to get changed files: {error}")
+        return []
+    return output.split('\n')
+
+def determine_version_bump(changed_files):
+    cargo_toml_changed = any('Cargo.toml' in file for file in changed_files)
+    src_files_changed = any(file.startswith('src/') for file in changed_files)
+    
+    if cargo_toml_changed:
+        # Check if dependencies were added or removed
+        code, output, error = run_command(f"git diff {get_latest_tag()}..HEAD Cargo.toml")
+        if '[dependencies]' in output:
+            return 'minor'
+    
+    if src_files_changed:
+        # Check for changes in public API
+        code, output, error = run_command(f"git diff {get_latest_tag()}..HEAD src/")
+        if 'pub fn' in output or 'pub struct' in output or 'pub enum' in output:
+            return 'minor'
+    
+    return 'patch'
+
+def increment_version(version_str, bump_type):
     v = version.parse(version_str)
     if isinstance(v, version.Version):
         major, minor, patch = v.major, v.minor, v.micro
-        return f"{major}.{minor}.{patch + 1}-beta"
+        if bump_type == 'major':
+            return f"{major + 1}.0.0-beta"
+        elif bump_type == 'minor':
+            return f"{major}.{minor + 1}.0-beta"
+        else:  # patch
+            return f"{major}.{minor}.{patch + 1}-beta"
     else:
         # If it's not a valid version, just append -1 to the string
         return f"{version_str}-1"
@@ -97,12 +127,26 @@ def increment_version(version_str):
 def update_cargo_toml(new_version):
     try:
         with open("Cargo.toml", "r") as f:
-            content = f.read()
+            lines = f.readlines()
         
-        new_content = re.sub(r'version\s*=\s*"[^"]+"', f'version = "{new_version}"', content)
-        
+        # Flag to track if we're in the [package] section
+        in_package_section = False
+
         with open("Cargo.toml", "w") as f:
-            f.write(new_content)
+            for line in lines:
+                # Check for the start of the [package] section
+                if line.strip().startswith("[package]"):
+                    in_package_section = True
+                
+                # Check for the end of the [package] section
+                if in_package_section and line.strip().startswith("[") and not line.strip().startswith("[package]"):
+                    in_package_section = False
+                
+                # Update version only if in [package] section
+                if in_package_section and line.strip().startswith("version ="):
+                    f.write(f'version = "{new_version}"\n')
+                else:
+                    f.write(line)
         
         logger.info(f"Updated Cargo.toml with new version: {new_version}")
         return True
@@ -110,15 +154,47 @@ def update_cargo_toml(new_version):
         logger.error(f"Failed to update Cargo.toml: {e}")
         return False
 
+def fix_eframe_dependency():
+    try:
+        with open("Cargo.toml", "r") as f:
+            content = toml.load(f)
+        
+        if 'dependencies' in content and 'eframe' in content['dependencies']:
+            content['dependencies']['eframe'] = { "version": "0.22.0", "features": ["persistence"] }
+        
+        with open("Cargo.toml", "w") as f:
+            toml.dump(content, f)
+        
+        logger.info("Updated eframe dependency in Cargo.toml")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to update eframe dependency in Cargo.toml: {e}")
+        return False
+
 def create_release():
+    _, current_version = get_project_info()
+    if not current_version:
+        logger.error("Failed to get current version from Cargo.toml")
+        return False
+
     latest_tag = get_latest_tag()
     if latest_tag:
-        new_version = increment_version(latest_tag.lstrip('v'))
+        if version.parse(current_version) <= version.parse(latest_tag.lstrip('v')):
+            changed_files = get_changed_files(latest_tag)
+            bump_type = determine_version_bump(changed_files)
+            new_version = increment_version(current_version, bump_type)
+        else:
+            new_version = current_version  # Cargo.toml version is already ahead
     else:
-        new_version = "1.0.0-beta"
+        new_version = current_version  # Use the version from Cargo.toml if no tags exist
 
-    if not update_cargo_toml(new_version):
-        return False
+    if new_version != current_version:
+        if not update_cargo_toml(new_version):
+            return False
+        
+        # Commit the Cargo.toml changes
+        run_command("git add Cargo.toml")
+        run_command(f'git commit -m "Update version to {new_version}"')
 
     logger.info(f"Creating release v{new_version}...")
     code, output, error = run_command(f'git tag -a v{new_version} -m "Release v{new_version}"')
@@ -129,6 +205,11 @@ def create_release():
     code, output, error = run_command("git push --tags")
     if code != 0:
         logger.error(f"Failed to push git tag: {error}")
+        return False
+
+    code, output, error = run_command("git push")  # Push the commit with updated Cargo.toml
+    if code != 0:
+        logger.error(f"Failed to push Cargo.toml update: {error}")
         return False
 
     logger.info(f"Release v{new_version} created and pushed successfully")
@@ -154,7 +235,18 @@ def build_cycle():
     code, output, error = cargo_build()
     if code != 0:
         logger.error(f"Build failed: {error}")
-        return False
+        if "failed to select a version for the requirement `eframe" in error:
+            logger.info("Attempting to fix eframe dependency...")
+            if fix_eframe_dependency():
+                logger.info("Retrying build after fixing eframe dependency...")
+                code, output, error = cargo_build()
+                if code != 0:
+                    logger.error(f"Build failed again: {error}")
+                    return False
+            else:
+                return False
+        else:
+            return False
     
     # Copy the executable
     if not copy_executable():
