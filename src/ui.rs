@@ -23,6 +23,8 @@ pub struct WarThunderCamoInstaller {
     search_query: String,
     current_index: usize,
     total_camos: usize,
+    search_results: Vec<Camouflage>, // Stores search results for pagination
+    search_mode: bool, // Indicates if we are in search mode
     loading_images: Arc<Mutex<bool>>,
     image_load_queue: Arc<Mutex<VecDeque<String>>>,
     wt_skins_dir: Option<PathBuf>,
@@ -59,6 +61,8 @@ impl WarThunderCamoInstaller {
             search_query: String::new(),
             current_index: 0,
             total_camos,
+            search_results: Vec::new(),
+            search_mode: false,
             loading_images,
             wt_skins_dir: None,
             custom_structure: "%USERSKINS/%NICKNAME/%SKIN_NAME - %VEHICLE".to_string(),
@@ -73,7 +77,7 @@ impl WarThunderCamoInstaller {
         };
 
         // Load the first camouflage on startup
-        if let Ok(Some((index, camo))) = installer.fetch_camouflage("") {
+        if let Ok(Some((index, camo))) = installer.fetch_camouflage_by_index(0) {
             installer.set_current_camo(index, camo);
         } else {
             installer.error_message = Some("Failed to load the initial camouflage.".to_string());
@@ -134,13 +138,17 @@ impl WarThunderCamoInstaller {
     }
 
     fn perform_search(&mut self) {
-        match self.fetch_camouflage(&self.search_query) {
-            Ok(Some((index, camo))) => {
-                self.set_current_camo(index, camo);
-                self.error_message = None;
-            }
-            Ok(None) => {
-                self.error_message = Some("No results found".to_string());
+        match self.fetch_camouflages(&self.search_query) {
+            Ok(results) => {
+                self.search_results = results;
+                self.search_mode = true;
+                self.current_index = 0;
+                if let Some(camo) = self.search_results.first() {
+                    self.set_current_camo(0, camo.clone());
+                } else {
+                    self.clear_images();
+                    self.error_message = Some("No results found".to_string());
+                }
             }
             Err(e) => {
                 self.error_message = Some(format!("Search error: {:?}", e));
@@ -148,14 +156,32 @@ impl WarThunderCamoInstaller {
         }
     }
 
-    fn fetch_camouflage(&self, query: &str) -> Result<Option<(usize, Camouflage)>, InstallerError> {
-        database::fetch_camouflage(&self.db_conn, query)
+    fn fetch_camouflages(&self, query: &str) -> Result<Vec<Camouflage>, InstallerError> {
+        database::fetch_camouflages(&self.db_conn, query)
+    }
+
+    fn fetch_camouflage_by_index(&self, index: usize) -> Result<Option<(usize, Camouflage)>, InstallerError> {
+        database::fetch_camouflage_by_index(&self.db_conn, index)
     }
 
     fn set_current_camo(&mut self, index: usize, camo: Camouflage) {
         self.current_index = index;
         self.current_camo = Some(camo);
+        
+        // Clear old images from the grid
+        self.clear_images();
+
         self.load_current_camo_images();
+    }
+
+    fn clear_images(&self) {
+        // Clear the current images from the HashMap to avoid appending old images
+        let mut images = self.images.lock().unwrap();
+        images.clear();
+
+        // Also clear the image load queue
+        let mut queue = self.image_load_queue.lock().unwrap();
+        queue.clear();
     }
 
     fn show_image_grid(&self, ui: &mut egui::Ui) {
@@ -309,8 +335,16 @@ impl WarThunderCamoInstaller {
     }
 
     fn show_next_camo(&mut self) {
-        if self.current_index < self.total_camos - 1 {
-            if let Ok(Some((index, camo))) = self.fetch_camouflage(&(self.current_index + 1).to_string()) {
+        if self.search_mode {
+            if self.current_index < self.search_results.len() - 1 {
+                self.current_index += 1;
+                if let Some(camo) = self.search_results.get(self.current_index) {
+                    self.set_current_camo(self.current_index, camo.clone());
+                }
+            }
+        } else if self.current_index < self.total_camos - 1 {
+            let next_index = self.current_index + 1;
+            if let Ok(Some((index, camo))) = self.fetch_camouflage_by_index(next_index) {
                 self.set_current_camo(index, camo);
             } else {
                 self.error_message = Some("Failed to load the next camouflage.".to_string());
@@ -319,8 +353,16 @@ impl WarThunderCamoInstaller {
     }
 
     fn show_previous_camo(&mut self) {
-        if self.current_index > 0 {
-            if let Ok(Some((index, camo))) = self.fetch_camouflage(&(self.current_index - 1).to_string()) {
+        if self.search_mode {
+            if self.current_index > 0 {
+                self.current_index -= 1;
+                if let Some(camo) = self.search_results.get(self.current_index) {
+                    self.set_current_camo(self.current_index, camo.clone());
+                }
+            }
+        } else if self.current_index > 0 {
+            let prev_index = self.current_index - 1;
+            if let Ok(Some((index, camo))) = self.fetch_camouflage_by_index(prev_index) {
                 self.set_current_camo(index, camo);
             } else {
                 self.error_message = Some("Failed to load the previous camouflage.".to_string());
@@ -370,42 +412,64 @@ impl eframe::App for WarThunderCamoInstaller {
         });
 
         // Header Panel for Search Bar
-        egui::TopBottomPanel::top("header_panel")
-            .min_height(50.0)
-            .show(ctx, |ui| {
-                ui.horizontal_centered(|ui| {
-                    ui.heading("Search for Camouflages");
+// Header Panel for Search Bar
+egui::TopBottomPanel::top("header_panel")
+    .min_height(70.0)  // Adjusted minimum height to provide adequate space
+    .show(ctx, |ui| {
+        // Center the content vertically within the top panel with different padding
+        ui.vertical_centered_justified(|ui| {
+            let top_padding = 20.0;    // More padding on the top
+            let bottom_padding = 10.0; // Half as much padding on the bottom
 
-                    let (rect, _response) = ui.allocate_exact_size(egui::vec2(ui.available_width() * 0.7, 40.0), egui::Sense::click_and_drag());
+            // Add padding at the top
+            ui.add_space(top_padding);
 
-                    // Draw search bar with rounded rectangle background
-                    let rect_shape = egui::epaint::RectShape {
-                        rect,
-                        rounding: egui::Rounding::same(5.0),
-                        fill: egui::Color32::from_gray(240),
-                        stroke: egui::Stroke::new(1.0, egui::Color32::from_gray(200)),
-                    };
+            // Use a horizontal layout for the search bar and button
+            ui.horizontal(|ui| {
+                // Calculate available width and apply equal padding on both sides
+                let side_padding = 20.0; // Padding on both sides
+                let total_width = ui.available_width() - (2.0 * side_padding);
 
-                    ui.painter().add(egui::Shape::Rect(rect_shape));
+                // Adjust the horizontal spacing to center the search bar and button
+                ui.add_space(side_padding);
 
-                    let search_bar = ui.put(rect.shrink(8.0), 
-                        egui::TextEdit::singleline(&mut self.search_query)
-                            .hint_text("Search for camouflages...")
-                            .desired_width(rect.width() - 40.0)
-                    );
+                // Calculate width for search bar and button to make it full width
+                let button_width = 40.0; // Fixed width for the button
+                let search_bar_width = total_width - button_width - 10.0; // Remaining width for the search bar with some spacing
 
-                    let button_rect = egui::Rect::from_min_size(
-                        egui::pos2(rect.right() - 32.0, rect.top() + 4.0),
-                        egui::vec2(28.0, 32.0),
-                    );
+                // Create search bar with the calculated width
+                let search_bar = ui.add_sized(
+                    [search_bar_width, 30.0], // Fixed height and calculated width
+                    egui::TextEdit::singleline(&mut self.search_query)
+                        .hint_text("Search for camouflages...")
+                );
 
-                    if ui.put(button_rect, egui::Button::new("🔍")).clicked() 
-                        || (search_bar.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) 
-                    {
-                        self.perform_search();
-                    }
-                });
+                // Add some space between the search bar and the button
+                ui.add_space(10.0);
+
+                // Create search button with a fixed width
+                if ui.add_sized([button_width, 30.0], egui::Button::new("🔍")).clicked()
+                    || (search_bar.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
+                {
+                    self.perform_search();
+                }
+
+                // Add space after the button to maintain equal padding
+                ui.add_space(side_padding);
             });
+
+            // Add padding at the bottom
+            ui.add_space(bottom_padding);
+        });
+    });
+
+
+
+
+
+
+
+
 
         // Central Panel for Main Content
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -515,3 +579,7 @@ impl eframe::App for WarThunderCamoInstaller {
         }
     }
 }
+
+
+
+ 

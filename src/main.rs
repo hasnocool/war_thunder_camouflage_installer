@@ -9,7 +9,13 @@ use eframe::{run_native, NativeOptions};
 use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let options = NativeOptions::default();
+    // Set initial window options, including size and centering behavior
+    let options = NativeOptions {
+        initial_window_size: Some(egui::vec2(800.0, 600.0)), // Set desired initial window size
+        centered: true, // Center the window on screen at startup
+        ..Default::default()
+    };
+
     let db_path = Path::new("war_thunder_camouflages.db");
 
     println!("Attempting to create WarThunderCamoInstaller...");
