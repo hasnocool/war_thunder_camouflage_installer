@@ -76,6 +76,41 @@ def copy_executable():
         logger.error(f"Failed to copy executable: {e}")
         return False
 
+def get_current_version():
+    try:
+        with open("Cargo.toml", "r") as f:
+            cargo_toml = toml.load(f)
+        return cargo_toml['package']['version']
+    except Exception as e:
+        logger.error(f"Failed to read version from Cargo.toml: {e}")
+        return None
+
+def create_release():
+    version = get_current_version()
+    if not version:
+        return False
+
+    logger.info(f"Creating release v{version}...")
+    code, output, error = run_command(f'git tag -a v{version} -m "Release v{version}"')
+    if code != 0:
+        logger.error(f"Failed to create git tag: {error}")
+        return False
+
+    code, output, error = run_command("git push --tags")
+    if code != 0:
+        logger.error(f"Failed to push git tag: {error}")
+        return False
+
+    logger.info(f"Release v{version} created and pushed successfully")
+    return True
+
+def prompt_for_release():
+    while True:
+        response = input("Do you want to create and push a release? (y/n): ").lower()
+        if response in ['y', 'n']:
+            return response == 'y'
+        print("Please enter 'y' or 'n'.")
+
 def build_cycle():
     logger.info(f"Starting build cycle at {time.strftime('%Y-%m-%d %H:%M:%S')}")
     
@@ -108,6 +143,14 @@ def build_cycle():
         return False
     
     logger.info("Build cycle completed successfully!")
+
+    # Prompt for release creation
+    if prompt_for_release():
+        if create_release():
+            logger.info("Release created and pushed successfully!")
+        else:
+            logger.error("Failed to create and push release.")
+    
     return True
 
 def main(daemon_mode, build_interval):
