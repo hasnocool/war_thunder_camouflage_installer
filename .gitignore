@@ -12,3 +12,4 @@ config.ini
 ../wtci_db/war_thunder_camouflages.db
 **/*.db
 *.db
+build_script_v1.py
