@@ -19,10 +19,10 @@ def run_command(command):
     return result.stdout.strip(), result.stderr.strip(), result.returncode
 
 def increment_version(version):
-    """Increment the patch version number while handling suffixes like '-beta'."""
+    """Increment the patch version number while preserving the existing suffix."""
     # Split the version into numeric and suffix parts
     if '-' in version:
-        base_version, suffix = version.rsplit('-', 1)  # Split from the right side
+        base_version, suffix = version.split('-', 1)  # Split into base version and suffix
     else:
         base_version = version
         suffix = None
@@ -35,10 +35,10 @@ def increment_version(version):
 
     new_version = '.'.join(parts)
 
-    # Reattach the suffix if it exists and is not already duplicated
-    if suffix and suffix != 'beta':
+    # Preserve the suffix if it exists
+    if suffix:
         return f"{new_version}-{suffix}"
-    return f"{new_version}-beta" if suffix == 'beta' else new_version
+    return new_version
 
 def check_repo_status():
     """Check if there are uncommitted changes."""
@@ -156,11 +156,11 @@ def get_latest_version_tag():
 def find_next_available_tag(current_tag):
     """Find the next available tag by incrementing the version until a unique tag is found."""
     new_version = increment_version(current_tag[1:])  # Remove the 'v' prefix and increment
-    new_tag = f"v{new_version}"
+    new_tag = f"v{new_version}-beta" if '-beta' in current_tag else f"v{new_version}"
 
     while tag_exists(new_tag):
         new_version = increment_version(new_version)
-        new_tag = f"v{new_version}"
+        new_tag = f"v{new_version}-beta" if '-beta' in current_tag else f"v{new_version}"
 
     return new_tag
 
@@ -234,13 +234,6 @@ def main():
 
     print(f"Latest tag will be incremented to: {new_tag}")
 
-    # Update Cargo.toml with the new version
-    update_cargo_toml(new_tag[1:])  # Remove 'v' prefix
-    
-    # Commit the Cargo.toml change
-    run_command('git add Cargo.toml')
-    run_command(f'git commit -m "Update version to {new_tag} in Cargo.toml"')
-
     print(f"Creating new tag: {new_tag}")
 
     # Create the new tag
@@ -264,6 +257,14 @@ def main():
 
     print(f"Tag {new_tag} created and pushed to remote.")
 
+    # Now update Cargo.toml with the new version
+    update_cargo_toml(new_tag[1:])  # Remove 'v' prefix
+    
+    # Commit the Cargo.toml change
+    run_command('git add Cargo.toml')
+    run_command(f'git commit -m "Update version to {new_tag} in Cargo.toml"')
+    run_command('git push origin master')
+
     # Generate changelog for release description
     changelog = get_changelog_since_last_tag()
     if not changelog:
@@ -276,8 +277,8 @@ def main():
             release_description = "Release notes not available."
 
     # Search for required files
-    camouflage_db_path = find_file_recursively('d:\wtci_db\war_thunder_camouflages.db')
-    installer_path = find_file_recursively('d:\wtci\binaries\war_thunder_camo_installer.exe')
+    camouflage_db_path = find_file_recursively('war_thunder_camouflages.db')
+    installer_path = find_file_recursively('war_thunder_camo_installer.exe')
 
     if not camouflage_db_path or not installer_path:
         print("Required files not found. Please ensure the following files are present:")
