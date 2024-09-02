@@ -156,11 +156,11 @@ def get_latest_version_tag():
 def find_next_available_tag(current_tag):
     """Find the next available tag by incrementing the version until a unique tag is found."""
     new_version = increment_version(current_tag[1:])  # Remove the 'v' prefix and increment
-    new_tag = f"v{new_version}-beta"
+    new_tag = f"v{new_version}"
 
     while tag_exists(new_tag):
         new_version = increment_version(new_version)
-        new_tag = f"v{new_version}-beta"
+        new_tag = f"v{new_version}"
 
     return new_tag
 
