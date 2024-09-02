@@ -17,6 +17,8 @@ OLLAMA_MODEL = "llama3"
 OLLAMA_API_URL = "http://192.168.1.223:11434"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BINARIES_FOLDER = "binaries"
+DB_SOURCE_FOLDER = os.path.join(os.path.dirname(SCRIPT_DIR), "wtci_db")
+DB_FILE_NAME = "war_thunder_camouflages.db"
 
 # Update these variables with your correct repository information
 GITHUB_REPO_OWNER = "hasnocool"  # Replace with your GitHub username
@@ -243,6 +245,41 @@ def copy_executable(auto_confirm=False):
         logger.error(f"Failed to copy executable: {e}")
         return False
 
+def create_release(auto_confirm=False):
+    logger.info("Creating a new release...")
+    
+    # Copy the database file
+    db_source = os.path.join(DB_SOURCE_FOLDER, DB_FILE_NAME)
+    db_destination = os.path.join(BINARIES_FOLDER, DB_FILE_NAME)
+    
+    if not os.path.exists(db_source):
+        logger.error(f"Database file not found at {db_source}")
+        return False
+    
+    try:
+        shutil.copy(db_source, db_destination)
+        logger.info(f"Database file copied successfully to {db_destination}")
+    except Exception as e:
+        logger.error(f"Failed to copy database file: {e}")
+        return False
+
+    # Generate release notes (you can modify this to generate more detailed notes)
+    release_notes = "New release with updated executable and database."
+
+    # Get the list of files in the BINARIES_FOLDER
+    files_to_release = ' '.join([os.path.join(BINARIES_FOLDER, f) for f in os.listdir(BINARIES_FOLDER)])
+
+    # Create the release using GitHub CLI
+    release_command = f'gh release create v{time.strftime("%Y.%m.%d")} {files_to_release} --notes "{release_notes}"'
+    code, output, error = run_command(release_command, verbose=True)
+
+    if code == 0:
+        logger.info("Release created successfully")
+        return True
+    else:
+        logger.error(f"Failed to create release: {error}")
+        return False
+
 def build_cycle(auto_confirm=False, use_ollama=False):
     logger.info(f"Starting build cycle at {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
@@ -263,6 +300,10 @@ def build_cycle(auto_confirm=False, use_ollama=False):
     code, output, error = cargo_test(auto_confirm)
     if code != 0:
         logger.error(f"Tests failed: {error}")
+        return False
+
+    if not create_release(auto_confirm):
+        logger.error("Failed to create release.")
         return False
 
     code, output, error = git_commit_and_push(auto_confirm, use_ollama)
