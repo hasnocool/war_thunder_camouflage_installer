@@ -144,6 +144,36 @@ def generate_detailed_changes_summary():
         logger.error(f"Error generating detailed changes summary: {e}")
         return ""
 
+def generate_release_args_with_ollama():
+    try:
+        prompt = (
+            "Generate a title and description for a GitHub release based on the following context:\n"
+            "- The release is for a database file update related to the War Thunder Camouflage Installer.\n"
+            "- Include relevant details about what the update contains or improves.\n"
+            "Provide the title and description in a clear format.\n"
+        )
+
+        payload = {
+            "model": OLLAMA_MODEL,
+            "prompt": prompt,
+            "stream": False
+        }
+        
+        headers = {'Content-Type': 'application/json'}
+        response = requests.post(f"{OLLAMA_API_URL}/api/generate", json=payload, headers=headers)
+        response.raise_for_status()
+        
+        print(f"Raw response from Ollama: {response.text}")
+        
+        # Assuming response is structured with 'title' and 'description'
+        title, description = response.json().get("response", "").split('\n', 1)
+        logger.info(f"Generated release title: {title.strip()}")
+        logger.info(f"Generated release description: {description.strip()}")
+        return title.strip(), description.strip()
+    except requests.RequestException as e:
+        logger.error(f"Error generating release arguments with Ollama: {e}")
+        return "Database Update Release", "Contains the latest version of the database file."
+
 def git_commit_and_push(auto_confirm=False, use_ollama=False):
     logger.info("Committing and pushing changes...")
     if not auto_confirm and not prompt_user("Do you want to commit and push changes?"):
@@ -194,12 +224,15 @@ def upload_db_to_github_release(auto_confirm=False):
         logger.error(f"Database file '{DB_FILE}' not found. Ensure the file path is correct.")
         return False
 
+    # Generate release title and notes using Ollama
+    title, notes = generate_release_args_with_ollama()
+
     # Check if the 'latest' release exists
     code, output, error = run_command("gh release view latest", verbose=False)
     
     if code != 0:
         logger.info("No 'latest' release found. Creating a new release.")
-        code, output, error = run_command(f"gh release create latest --title 'Latest Database Release' --notes 'Contains the latest version of the database file.'", verbose=True)
+        code, output, error = run_command(f"gh release create latest --title '{title}' --notes '{notes}'", verbose=True)
         if code != 0:
             logger.error(f"Failed to create a new release: {error}")
             return False
