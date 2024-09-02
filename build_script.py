@@ -59,9 +59,39 @@ def check_dependencies(auto_confirm=True):
 
 def git_pull(auto_confirm=True):
     logger.info("Pulling latest changes...")
-    if not auto_confirm and not prompt_user("Do you want to pull the latest changes from the repository?"):
-        return (0, "", "")
-    return run_command("git pull", verbose=True)
+
+    # Try pulling changes
+    code, output, error = run_command("git pull", verbose=True)
+    
+    if code != 0 and "Your local changes to the following files would be overwritten by merge" in error:
+        logger.warning("Local changes detected that would be overwritten by merge.")
+        if not auto_confirm and not prompt_user("Local changes detected. Do you want to automatically commit these changes? (y/n)"):
+            return code, output, error
+
+        # Automatically commit or stash changes
+        logger.info("Automatically committing or stashing local changes...")
+        
+        # Check for uncommitted changes
+        code, output, error = run_command("git status --porcelain", verbose=False)
+        if output.strip():
+            # Commit changes if there are any
+            run_command("git add .", verbose=True)
+            run_command('git commit -m "Auto-commit before pulling latest changes"', verbose=True)
+        else:
+            # If nothing to commit, stash changes
+            run_command("git stash", verbose=True)
+
+        # Retry pulling latest changes
+        code, output, error = run_command("git pull", verbose=True)
+        if code == 0:
+            logger.info("Successfully pulled latest changes after handling local changes.")
+        else:
+            logger.error(f"Failed to pull latest changes even after handling local changes: {error}")
+
+    elif code != 0:
+        logger.error(f"Failed to pull latest changes: {error}")
+
+    return code, output, error
 
 def cargo_build(auto_confirm=True):
     logger.info(f"Building project with options: {CARGO_BUILD_OPTIONS}")
@@ -183,9 +213,6 @@ def get_latest_github_version():
     return latest_version
 
 def scrape_github_tags_page():
-    """
-    Scrape the GitHub tags page to find the latest tag version.
-    """
     try:
         tags_page_url = "https://github.com/hasnocool/war_thunder_camouflage_installer/tags"
         response = requests.get(tags_page_url)
@@ -272,7 +299,7 @@ def create_release(auto_confirm=False):
         logger.error(f"Failed to push git tag: {error}")
         return False
 
-    code, output, error = run_command("gh release create v{new_version}", verbose=True)
+    code, output, error = run_command(f"gh release create v{new_version}", verbose=True)
     if code != 0:
         logger.error(f"Failed to create GitHub release: {error}")
         return False

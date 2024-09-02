@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use crate::data::Camouflage;
 
+#[allow(dead_code)]
 pub fn generate_custom_path(base_dir: &Path, custom_structure: &str, camo: &Camouflage) -> PathBuf {
     let mut path = custom_structure.to_string();
     path = path.replace("%USERSKINS", base_dir.to_str().unwrap_or(""));

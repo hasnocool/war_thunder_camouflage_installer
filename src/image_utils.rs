@@ -55,7 +55,7 @@ pub fn load_image(url: String) -> Result<Vec<u8>, ImageError> {
 }
 
 fn load_image_from_cache(cache_path: &Path) -> Result<Vec<u8>, ImageError> {
-    fs::read(cache_path).map_err(|e| ImageError::IoError(e))
+    fs::read(cache_path).map_err(ImageError::IoError)
 }
 
 fn encode_image(image_data: &[u8]) -> Result<Vec<u8>, ImageError> {

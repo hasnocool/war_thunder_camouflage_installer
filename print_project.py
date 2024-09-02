@@ -1,4 +1,5 @@
 import os
+import pyperclip
 
 def list_files_in_directory(directory, extensions):
     """List all files in the given directory with the specified extensions."""
@@ -10,11 +11,10 @@ def list_files_in_directory(directory, extensions):
     return file_list
 
 def print_file_contents(file_path):
-    """Print the contents of a file with a divider."""
+    """Return the contents of a file with a divider."""
     divider = f"\n{'=' * 40}\n{file_path}\n{'=' * 40}\n"
-    print(divider)
     with open(file_path, 'r', encoding='utf-8') as file:
-        print(file.read())
+        return divider + file.read()
 
 def main():
     # Define the extensions and directories
@@ -26,15 +26,25 @@ def main():
     # Get the list of Rust files in the src directory
     rust_files = list_files_in_directory(src_dir, rust_extensions)
 
-    # Print the contents of each Rust file
-    for rust_file in rust_files:
-        print_file_contents(rust_file)
+    # Collect the output in a string
+    output = ""
 
-    # Print the contents of Cargo.toml if it exists
+    # Append the contents of each Rust file to the output
+    for rust_file in rust_files:
+        output += print_file_contents(rust_file)
+
+    # Append the contents of Cargo.toml if it exists
     if os.path.isfile(cargo_toml):
-        print_file_contents(cargo_toml)
+        output += print_file_contents(cargo_toml)
     else:
-        print(f"\n{'=' * 40}\nCargo.toml not found in the current directory.\n{'=' * 40}\n")
+        output += f"\n{'=' * 40}\nCargo.toml not found in the current directory.\n{'=' * 40}\n"
+
+    # Print and copy the output to the clipboard
+    print(output)
+    pyperclip.copy(output)
 
 if __name__ == "__main__":
     main()
+
+
+

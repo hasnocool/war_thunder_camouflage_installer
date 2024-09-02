@@ -31,7 +31,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
         Err(e) => {
             eprintln!("Failed to initialize the application: {:?}", e);
-            eprintln!("Make sure the database file exists at: {:?}", db_path);
+            eprintln!("This could be due to database initialization issues.");
+            eprintln!("Make sure you have write permissions in the directory containing: {:?}", db_path);
             Err(Box::new(e))
         }
     }
