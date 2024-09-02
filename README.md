@@ -26,6 +26,9 @@ The **War Thunder Camouflage Installer** is a Rust-based desktop application des
 ![image](https://github.com/user-attachments/assets/ba4fb676-3fa0-4623-a054-0930bfb118fe)
 
 ### SEARCH BAR & TAG FILTERING
+
+![image](https://github.com/user-attachments/assets/295bd8b8-d272-4b05-91ea-77691033fae7)
+
 ![image](https://github.com/user-attachments/assets/8d420263-99a6-4d4d-a9f3-ea6f2f673f2c)
 
 ## Features
