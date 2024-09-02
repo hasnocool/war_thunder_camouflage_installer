@@ -1,0 +1,11 @@
+Hey there, so ive been reading the guidelines and Im not seeing anything preventing me from posting my open source camouflage installer, that allows viewing and browsing while enabling a one click install. It started off just being lazy and hating the skin install process so I made the app for me personally, but honestly feel like something like this is long over due. I just know Gaijen and I dont want to put it out there and have everyone who uses it banned for cheating or something ridiculous.  
+
+I get how this may sound, but I assure you this is a honest passion project, not a threat actor its all open source and your welcome to review the code, run the binaries or build them yourself so Im hopeing this helps... Long story short it doesnt host anything that might be content infringing, as it links the camouflages and accesses them via wt-live nothing is hosted or anything... 
+
+You can see the project here: https://github.com/hasnocool/war_thunder_camouflage_installer
+
+Im honestly just a struggling developer, went to school for this and Im 41 now and have never been able to convince anyone to hire me professionally so Im really hoping to leverage this towards that. These are my honest intentions with the project... Im pretty excited about it cause theres a niche here, and Im hoping its ok to post this... I just wanted to ask permission first I figure if I had a chance at all this would be the proper thing to do.
+
+Hope to hear back from you. Thanks
+
+- Fleshwounded

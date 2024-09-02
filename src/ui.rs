@@ -769,47 +769,80 @@ egui::TopBottomPanel::bottom("footer_panel")
         // Additional Popups
         self.show_custom_structure_popup(ctx);
 
-    // Corrected field usage instead of method call
-    if self.show_about_popup {
-        egui::Window::new("About").show(ctx, |ui| {
-            ui.label("War Thunder Camouflage Installer v2024.09.02-072307");
-            ui.label("Developed by hasnocool.");
+// Corrected field usage instead of method call
+if self.show_about_popup {
+    egui::Window::new("About").show(ctx, |ui| {
+        ui.label("War Thunder Camouflage Installer v2024.09.02-072307");
+        ui.label("Developed by hasnocool.");
 
-            // GitHub URL
-            ui.horizontal(|ui| {
-                ui.label("GitHub: ");
-                if ui.hyperlink("https://github.com/hasnocool").clicked() {
-                    // Optionally handle click if needed
-                }
-                if ui.button("Copy").clicked() {
-                    ctx.output_mut(|o| o.copied_text = "https://github.com/hasnocool".to_string());
-                }
-            });
-
-            // Email Address
-            ui.horizontal(|ui| {
-                ui.label("Email: ");
-                ui.label("hasnocool@outlook.com");
-                if ui.button("Copy").clicked() {
-                    ctx.output_mut(|o| o.copied_text = "hasnocool@outlook.com".to_string());
-                }
-            });
-
-            // Dogecoin Address
-            ui.horizontal(|ui| {
-                ui.label("Dogecoin Address: ");
-                ui.label("D6R9njUqnbvPjP1CVceeP1EG7E6h3PzffB");
-                if ui.button("Copy").clicked() {
-                    ctx.output_mut(|o| o.copied_text = "D6R9njUqnbvPjP1CVceeP1EG7E6h3PzffB".to_string());
-                }
-            });
-
-            // Close button
-            if ui.button("Close").clicked() {
-                self.show_about_popup = false;
+        // GitHub URL
+        ui.horizontal(|ui| {
+            ui.label("GitHub: ");
+            if ui.hyperlink("https://github.com/hasnocool").clicked() {
+                // Optionally handle click if needed
+            }
+            if ui.button("Copy").clicked() {
+                ctx.output_mut(|o| o.copied_text = "https://github.com/hasnocool".to_string());
             }
         });
-    }
+
+        // Email Address
+        ui.horizontal(|ui| {
+            ui.label("Email: ");
+            ui.label("hasnocool@outlook.com");
+            if ui.button("Copy").clicked() {
+                ctx.output_mut(|o| o.copied_text = "hasnocool@outlook.com".to_string());
+            }
+        });
+
+        // Dogecoin Address
+        ui.horizontal(|ui| {
+            ui.label("Dogecoin Address: ");
+            ui.label("D6R9njUqnbvPjP1CVceeP1EG7E6h3PzffB");
+            if ui.button("Copy").clicked() {
+                ctx.output_mut(|o| o.copied_text = "D6R9njUqnbvPjP1CVceeP1EG7E6h3PzffB".to_string());
+            }
+        });
+
+        // Twitch Channel
+        ui.horizontal(|ui| {
+            ui.label("Twitch: ");
+            if ui.hyperlink("https://www.twitch.tv/fleshwounded").clicked() {
+                // Optionally handle click if needed
+            }
+            if ui.button("Copy").clicked() {
+                ctx.output_mut(|o| o.copied_text = "https://www.twitch.tv/fleshwounded".to_string());
+            }
+        });
+
+        // X (Twitter) Profile
+        ui.horizontal(|ui| {
+            ui.label("X (formerly Twitter): ");
+            if ui.hyperlink("https://x.com/fleshwounded").clicked() {
+                // Optionally handle click if needed
+            }
+            if ui.button("Copy").clicked() {
+                ctx.output_mut(|o| o.copied_text = "https://x.com/fleshwounded".to_string());
+            }
+        });
+
+        // War Thunder Profile
+        ui.horizontal(|ui| {
+            ui.label("War Thunder Profile: ");
+            if ui.hyperlink("https://warthunder.com/en/community/userinfo/?nick=Fleshwounded").clicked() {
+                // Optionally handle click if needed
+            }
+            if ui.button("Copy").clicked() {
+                ctx.output_mut(|o| o.copied_text = "https://warthunder.com/en/community/userinfo/?nick=Fleshwounded".to_string());
+            }
+        });
+
+        // Close button
+        if ui.button("Close").clicked() {
+            self.show_about_popup = false;
+        }
+    });
+}
 
 
 
