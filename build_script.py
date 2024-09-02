@@ -245,6 +245,8 @@ def get_latest_release_checksum():
         logger.error(f"Failed to retrieve latest release data: {e}")
         return ""
 
+DB_FILE = "war_thunder_camouflages.db"  # Update with the correct path
+
 def upload_db_to_github_release(auto_confirm=False):
     """
     Upload the database file to the GitHub release page.
@@ -254,7 +256,7 @@ def upload_db_to_github_release(auto_confirm=False):
     # Check if the database file exists before attempting to upload
     if not os.path.exists(DB_FILE):
         logger.error(f"Database file '{DB_FILE}' not found. Ensure the file path is correct.")
-        return False
+        return False  # Exit if the file is not found
 
     # Calculate the checksum of the local database file
     local_checksum = get_file_checksum(DB_FILE)
