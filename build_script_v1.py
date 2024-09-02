@@ -31,36 +31,28 @@ def check_repo_status():
     return return_code == 0
 
 def generate_commit_message_with_ollama(changes_summary):
-    try:
-        prompt = (
-            "Based on the following changes in the source files and Cargo.toml, "
-            "generate a concise and factual commit message summarizing these updates. "
-            "Only provide the commit message, nothing else.\n\n"
-            "Example commit message format:\n"
-            "- Refactored API endpoints to improve performance and scalability.\n"
-            "- Added error handling to enhance debugging capabilities.\n"
-            "- Fixed UI alignment issue on the dashboard (Fixes #234).\n"
-            "- Updated Cargo dependencies to the latest stable versions.\n\n"
-            f"Changes summary:\n{changes_summary}"
-        )
-
-        payload = {
-            "model": OLLAMA_MODEL,
-            "prompt": prompt,
-            "stream": False
-        }
-        
-        headers = {'Content-Type': 'application/json'}
-        response = requests.post(f"{OLLAMA_API_URL}/api/generate", json=payload, headers=headers)
-        response.raise_for_status()
-        
-        print(f"Raw response from Ollama: {response.text}")
-        
-        commit_message = response.json().get("response", "").strip()
-        logger.info(f"Generated commit message: {commit_message}")
-        return commit_message
-    except requests.RequestException as e:
-        logger.error(f"Error generating commit message with Ollama: {e}")
+    """Generate a commit message using Ollama LLM."""
+    prompt = (
+        "You are an AI assistant that helps generate concise and informative commit messages "
+        "for a software repository. The repository is a Rust project that is being maintained "
+        "by multiple developers. Please read the following summary of changes and generate a "
+        "commit message that is clear, concise, and follows the conventional commit style. "
+        "The commit message should start with a capitalized verb in the imperative mood and "
+        "should not exceed 50 characters in the subject line.\n\n"
+        f"Changes Summary:\n{changes_summary}\n\n"
+        "Expected Output:\n- A single-line commit subject.\n- An optional commit body with a "
+        "brief description of the changes, if necessary."
+    )
+    
+    response = requests.post(
+        f"{OLLAMA_API_URL}/generate",
+        json={"model": OLLAMA_MODEL, "prompt": prompt}
+    )
+    
+    if response.status_code == 200:
+        return response.json().get('text', '').strip()
+    else:
+        logger.error("Failed to get response from Ollama API: %s", response.text)
         return None
 
 def handle_large_file_error(error_message):
@@ -111,6 +103,19 @@ def stage_and_commit_changes():
     print("Changes committed successfully.")
     return True
 
+def update_cargo_toml(new_version):
+    """Update the version in Cargo.toml without changing formatting."""
+    with open('Cargo.toml', 'r') as file:
+        lines = file.readlines()
+
+    for i, line in enumerate(lines):
+        if line.startswith('version = '):
+            lines[i] = f'version = "{new_version}"\n'
+            break
+
+    with open('Cargo.toml', 'w') as file:
+        file.writelines(lines)
+
 def main():
     # Check if we're in a git repository
     if not os.path.isdir('.git'):
@@ -139,6 +144,13 @@ def main():
         print(f"Error fetching latest tag: {error}")
         return
 
+    # Update Cargo.toml with the new version
+    update_cargo_toml(new_tag[1:])  # Remove 'v' prefix
+    
+    # Commit the Cargo.toml change
+    run_command('git add Cargo.toml')
+    run_command(f'git commit -m "Update version to {new_tag} in Cargo.toml"')
+
     print(f"Creating new tag: {new_tag}")
 
     # Create the new tag
@@ -147,7 +159,13 @@ def main():
         print(f"Error creating tag: {error}")
         return
 
-    # Try to push the new tag
+    # Try to push the new tag and changes
+    _, error, return_code = run_command('git push origin master')
+    if return_code != 0:
+        handle_large_file_error(error)
+        run_command(f'git tag -d {new_tag}')
+        return
+
     _, error, return_code = run_command(f'git push origin {new_tag}')
     if return_code != 0:
         handle_large_file_error(error)
@@ -168,7 +186,13 @@ def main():
     release_title = f"War Thunder Camouflage Installer {new_tag}"
     print(f"Creating release: {release_title}")
     
-    create_release_command = f'gh release create {new_tag} --title "{release_title}" --notes "{release_notes}"'
+    create_release_command = (
+        f'gh release create {new_tag} '
+        f'--title "{release_title}" '
+        f'--notes "{release_notes}" '
+        f'"../war_thunder_camouflages.db" '
+        f'"./binaries/war_thunder_camo_installer.exe"'
+    )
     output, error, return_code = run_command(create_release_command)
     
     if return_code != 0:
