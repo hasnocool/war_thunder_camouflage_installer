@@ -99,6 +99,46 @@ impl WarThunderCamoInstaller {
         Ok(installer)
     }
 
+    fn select_database_file(&mut self) {
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("SQLite Database", &["db", "sqlite"])
+            .pick_file()
+        {
+            match rusqlite::Connection::open(&path) {
+                Ok(new_conn) => {
+                    // Attempt to initialize the database
+                    if let Err(e) = database::initialize_database(&new_conn) {
+                        self.error_message = Some(format!("Failed to initialize database: {}", e));
+                        return;
+                    }
+
+                    // If initialization is successful, update the connection
+                    self.db_conn = new_conn;
+                    self.error_message = Some(format!("Database set to: {}", path.display()));
+
+                    // Reset the application state
+                    self.total_camos = database::update_total_camos(&self.db_conn)
+                        .unwrap_or(0);
+                    self.current_index = 0;
+                    self.search_results.clear();
+                    self.search_mode = false;
+                    self.clear_images();
+
+                    // Load the first camouflage
+                    if let Ok(Some((index, camo))) = self.fetch_camouflage_by_index(0) {
+                        self.set_current_camo(index, camo);
+                    } else {
+                        self.current_camo = None;
+                        self.error_message = Some("Failed to load initial camouflage from new database.".to_string());
+                    }
+                }
+                Err(e) => {
+                    self.error_message = Some(format!("Failed to open database: {}", e));
+                }
+            }
+        }
+    }
+
     fn add_custom_tags(&mut self) {
         let new_tags: Vec<String> = self.custom_tags_input
             .split(',')
@@ -439,6 +479,10 @@ impl eframe::App for WarThunderCamoInstaller {
                         }
                         ui.close_menu();
                     }
+                    if ui.button("Set Database File").clicked() {
+                        self.select_database_file();
+                        ui.close_menu();
+                    }
                     if ui.button("Custom Structure Settings").clicked() {
                         self.show_custom_structure_popup = true;
                         ui.close_menu();
@@ -562,7 +606,7 @@ impl eframe::App for WarThunderCamoInstaller {
             });
         });
         
-// Footer Panel for Buttons and Custom Tags Input
+// Footer Panel for Buttons, Custom Tags Input, and Pagination
 egui::TopBottomPanel::bottom("footer_panel")
     .min_height(100.0)
     .show(ctx, |ui| {
@@ -571,22 +615,24 @@ egui::TopBottomPanel::bottom("footer_panel")
         ui.horizontal(|ui| {
             ui.add_space(10.0);
 
-            if !self.search_results.is_empty() {
-                if ui.button("Previous").clicked() {
-                    self.show_previous_camo();
-                }
-
-                ui.label(format!("{}/{}", self.current_index + 1, self.search_results.len()));
-
-                if ui.button("Next").clicked() {
-                    self.show_next_camo();
-                }
-
-                ui.add_space(20.0); // Add some space between navigation and install button
-            } else {
-                ui.label("No results");
+            // Pagination buttons
+            if ui.button("Previous").clicked() {
+                self.show_previous_camo();
             }
 
+            if self.search_mode {
+                ui.label(format!("{}/{}", self.current_index + 1, self.search_results.len()));
+            } else {
+                ui.label(format!("{}/{}", self.current_index + 1, self.total_camos));
+            }
+
+            if ui.button("Next").clicked() {
+                self.show_next_camo();
+            }
+
+            ui.add_space(20.0); // Add some space between navigation and install button
+
+            // Install button
             if let Some(camo) = &self.current_camo {
                 let zip_file_url = camo.zip_file_url.clone();
 
