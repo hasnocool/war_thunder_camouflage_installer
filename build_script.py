@@ -4,7 +4,6 @@ import sys
 import time
 import argparse
 import logging
-import shutil
 import toml
 import configparser
 import requests
@@ -16,9 +15,9 @@ CONFIG_FILE = "config.ini"
 OLLAMA_MODEL = "llama3"
 OLLAMA_API_URL = "http://192.168.1.223:11434"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-BINARIES_FOLDER = "binaries"
 DB_SOURCE_FOLDER = os.path.join(os.path.dirname(SCRIPT_DIR), "wtci_db")
 DB_FILE_NAME = "war_thunder_camouflages.db"
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB in bytes
 
 # Update these variables with your correct repository information
 GITHUB_REPO_OWNER = "hasnocool"  # Replace with your GitHub username
@@ -248,30 +247,46 @@ def copy_executable(auto_confirm=False):
 def create_release(auto_confirm=False):
     logger.info("Creating a new release...")
     
-    # Check if the database file exists
-    db_source = os.path.join(DB_SOURCE_FOLDER, DB_FILE_NAME)
-    if not os.path.exists(db_source):
-        logger.error(f"Database file not found at {db_source}")
-        return False
-    
     # Generate release notes (you can modify this to generate more detailed notes)
     release_notes = "New release with updated executable and database."
 
-    # Get the executable file
-    project_name, _ = get_project_info()
-    executable_path = os.path.join(BINARIES_FOLDER, f"{project_name}.exe")
+    # Get the executable file path
+    project_name, error = get_project_info()
+    if not project_name:
+        logger.error(f"Failed to get project name: {error}")
+        return False
+    
+    executable_path = os.path.join(SCRIPT_DIR, "target", "release", f"{project_name}.exe")
+    db_path = os.path.join(DB_SOURCE_FOLDER, DB_FILE_NAME)
+
+    # Check if files exist
     if not os.path.exists(executable_path):
         logger.error(f"Executable not found at {executable_path}")
         return False
+    if not os.path.exists(db_path):
+        logger.error(f"Database file not found at {db_path}")
+        return False
 
     # Files to include in the release
-    files_to_release = f"{executable_path} {db_source}"
+    files_to_release = []
+    for file_path in [executable_path, db_path]:
+        file_size = os.path.getsize(file_path)
+        if file_size <= MAX_FILE_SIZE:
+            files_to_release.append(file_path)
+        else:
+            logger.warning(f"Skipping {file_path} (size: {file_size / 1024 / 1024:.2f}MB) as it exceeds GitHub's 100MB limit")
+
+    if not files_to_release:
+        logger.error("No files to release after size check")
+        return False
+
+    files_to_release_str = ' '.join(f'"{file}"' for file in files_to_release)
 
     # Create a unique tag for the release
     release_tag = f'v{time.strftime("%Y.%m.%d")}-{time.strftime("%H%M%S")}'
 
     # Create the release using GitHub CLI
-    release_command = f'gh release create {release_tag} {files_to_release} --notes "{release_notes}"'
+    release_command = f'gh release create {release_tag} {files_to_release_str} --notes "{release_notes}"'
     code, output, error = run_command(release_command, verbose=True)
 
     if code == 0:
@@ -292,10 +307,6 @@ def build_cycle(auto_confirm=False, use_ollama=False):
     code, output, error = cargo_build(auto_confirm)
     if code != 0:
         logger.error(f"Build failed: {error}")
-        return False
-
-    if not copy_executable(auto_confirm):
-        logger.error("Failed to copy executable to binaries folder.")
         return False
 
     code, output, error = cargo_test(auto_confirm)
