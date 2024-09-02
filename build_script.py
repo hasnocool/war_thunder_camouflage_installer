@@ -22,6 +22,8 @@ DB_FOLDER = "db"
 DB_FILE = os.path.join(DB_FOLDER, "war_thunder_camouflages.db")
 BINARIES_FOLDER = "binaries"
 
+
+
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -218,31 +220,29 @@ def get_file_checksum(file_path):
             sha256_hash.update(byte_block)
     return sha256_hash.hexdigest()
 
+
+
 # Update these variables with your correct repository information
 GITHUB_REPO_OWNER = "hasnocool"  # Replace with your GitHub username
 GITHUB_REPO_NAME = "war_thunder_camouflage_installer"  # Replace with your repository name
 
-def get_latest_release_checksum():
-    try:
-        response = requests.get(f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/releases/latest")
-        response.raise_for_status()
-        release_data = response.json()
-        for asset in release_data.get("assets", []):
-            if asset["name"] == os.path.basename(DB_FILE):
-                logger.info(f"Found existing database file in release: {asset['name']}")
-                return asset.get("checksum", "")
-        logger.info("No existing database file found in the latest release.")
-        return ""
-    except requests.RequestException as e:
-        logger.error(f"Failed to retrieve latest release data: {e}")
-        logger.error(f"Make sure the repository '{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}' exists and you have access to it.")
-        return ""
-    
+# Update the DB_FOLDER and DB_FILE to use absolute paths
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FOLDER = os.path.join(SCRIPT_DIR, "db")
+DB_FILE = os.path.join(DB_FOLDER, "war_thunder_camouflages.db")
+
+def run_command(command, verbose=True):
+    if verbose:
+        print(f"Running command: {command}")
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True, universal_newlines=True)
+    output, error = process.communicate()
+    return process.returncode, output, error
+
 def upload_db_to_github_release(auto_confirm=False):
     logger.info("Uploading database file to GitHub release...")
 
     if not os.path.exists(DB_FILE):
-        logger.error(f"Database file '{DB_FILE}' not found. Ensure the file path is correct.")
+        logger.error(f"Database file '{DB_FILE}' not found.")
         return False
 
     local_checksum = get_file_checksum(DB_FILE)
@@ -263,22 +263,24 @@ def upload_db_to_github_release(auto_confirm=False):
     
     if code != 0:
         logger.info("No 'latest' release found. Creating a new release.")
-        code, output, error = run_command(f"gh release create latest --title '{title}' --notes '{notes}' {DB_FILE}", verbose=True)
+        release_command = f'gh release create latest --title "{title}" --notes "{notes}" "{DB_FILE}"'
+        code, output, error = run_command(release_command, verbose=True)
         if code != 0:
             logger.error(f"Failed to create a new release: {error}")
-            logger.error(f"Make sure the file '{DB_FILE}' exists and you have write permissions.")
+            logger.error(f"Command attempted: {release_command}")
             return False
     else:
         logger.info("'Latest' release found. Updating the existing release.")
-        code, output, error = run_command(f"gh release upload latest '{DB_FILE}' --clobber", verbose=True)
+        upload_command = f'gh release upload latest "{DB_FILE}" --clobber'
+        code, output, error = run_command(upload_command, verbose=True)
     
     if code == 0:
         logger.info(f"Successfully uploaded {DB_FILE} to the 'latest' release.")
         return True
     else:
         logger.error(f"Failed to upload {DB_FILE} to the 'latest' release: {error}")
+        logger.error(f"Command attempted: {upload_command if 'upload_command' in locals() else release_command}")
         return False
-
 
 def generate_commit_message_with_ollama(changes_summary):
     try:
@@ -422,3 +424,11 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
         sys.exit(1)
+
+
+
+
+
+
+
+
