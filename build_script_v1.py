@@ -3,7 +3,7 @@ import subprocess
 import requests
 import logging
 import re
-import json  # Make sure to import the json module for handling JSON
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -19,18 +19,24 @@ def run_command(command):
     return result.stdout.strip(), result.stderr.strip(), result.returncode
 
 def increment_version(version):
-    """Increment the patch version number."""
-    # Remove non-numeric suffix
-    base_version = version.split('-')[0]
-    parts = base_version.split('.')
-    
-    if len(parts) >= 3:
-        parts[2] = str(int(parts[2]) + 1)  # Increment patch version
-    new_version = '.'.join(parts)
-    
-    # Preserve any suffix like '-beta'
+    """Increment the patch version number, handling suffixes like '-beta'."""
+    # Separate the base version (e.g., '1.0.2') from the suffix (e.g., 'beta')
     if '-' in version:
-        suffix = version.split('-')[1]
+        base_version, suffix = version.split('-')
+    else:
+        base_version = version
+        suffix = None
+
+    parts = base_version.split('.')
+
+    # Increment the patch version part
+    if len(parts) >= 3:
+        parts[2] = str(int(parts[2]) + 1)  # Convert to int, increment, convert back to str
+
+    new_version = '.'.join(parts)
+
+    # Reattach the suffix if it exists
+    if suffix:
         return f"{new_version}-{suffix}"
     return new_version
 
@@ -270,8 +276,8 @@ def main():
             release_description = "Release notes not available."
 
     # Search for required files
-    camouflage_db_path = find_file_recursively('war_thunder_camouflages.db')
-    installer_path = find_file_recursively('war_thunder_camo_installer.exe')
+    camouflage_db_path = find_file_recursively('..\wtci_db\war_thunder_camouflages.db')
+    installer_path = find_file_recursively('.\binaries\war_thunder_camo_installer.exe')
 
     if not camouflage_db_path or not installer_path:
         print("Required files not found. Please ensure the following files are present:")
