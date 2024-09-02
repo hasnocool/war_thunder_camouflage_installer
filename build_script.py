@@ -5,12 +5,9 @@ import time
 import argparse
 import logging
 import shutil
-import hashlib
 import toml
 import configparser
 import requests
-from bs4 import BeautifulSoup
-from packaging import version
 
 # Configuration
 CARGO_BUILD_OPTIONS = "--release -j50"
@@ -18,9 +15,12 @@ DEFAULT_BUILD_INTERVAL = 3600  # 1 hour
 CONFIG_FILE = "config.ini"
 OLLAMA_MODEL = "llama3"
 OLLAMA_API_URL = "http://192.168.1.223:11434"
-DB_FOLDER = "db"
-DB_FILE = os.path.join(DB_FOLDER, "war_thunder_camouflages.db")
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BINARIES_FOLDER = "binaries"
+
+# Update these variables with your correct repository information
+GITHUB_REPO_OWNER = "hasnocool"  # Replace with your GitHub username
+GITHUB_REPO_NAME = "war_thunder_camouflage_installer"  # Replace with your repository name
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 def run_command(command, verbose=True):
     if verbose:
         print(f"Running command: {command}")
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True, encoding='utf-8', errors='ignore')
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True, universal_newlines=True)
     output, error = process.communicate()
     return process.returncode, output, error
 
@@ -140,35 +140,6 @@ def generate_detailed_changes_summary():
         logger.error(f"Error generating detailed changes summary: {e}")
         return ""
 
-def generate_release_args_with_ollama():
-    try:
-        prompt = (
-            "Generate a title and description for a GitHub release based on the following context:\n"
-            "- The release is for a database file update related to the War Thunder Camouflage Installer.\n"
-            "- Include relevant details about what the update contains or improves.\n"
-            "Provide the title and description in a clear format.\n"
-        )
-
-        payload = {
-            "model": OLLAMA_MODEL,
-            "prompt": prompt,
-            "stream": False
-        }
-        
-        headers = {'Content-Type': 'application/json'}
-        response = requests.post(f"{OLLAMA_API_URL}/api/generate", json=payload, headers=headers)
-        response.raise_for_status()
-        
-        print(f"Raw response from Ollama: {response.text}")
-        
-        title, description = response.json().get("response", "").split('\n', 1)
-        logger.info(f"Generated release title: {title.strip()}")
-        logger.info(f"Generated release description: {description.strip()}")
-        return title.strip(), description.strip()
-    except requests.RequestException as e:
-        logger.error(f"Error generating release arguments with Ollama: {e}")
-        return "Database Update Release", "Contains the latest version of the database file."
-
 def git_commit_and_push(auto_confirm=False, use_ollama=False):
     logger.info("Committing and pushing changes...")
     
@@ -195,90 +166,14 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
     run_command("git add .", verbose=True)
     run_command(f'git commit -m "{commit_message}"', verbose=True)
 
-    # Attempt to push changes, handling large file errors
+    # Attempt to push changes
     code, output, error = run_command("git push --no-verify", verbose=True)
 
     if code != 0:
-        if "large files detected" in error.lower() or "exceeds github's file size limit" in error.lower():
-            logger.warning("Large file detected. Excluding from push and proceeding with GitHub release upload.")
-            run_command(f"git rm --cached {DB_FILE}", verbose=True)  # Remove the large file from git tracking
-            run_command("git commit -m 'Remove large db file from git tracking'", verbose=True)
-            run_command("git push --no-verify", verbose=True)  # Retry pushing without the large file
-            upload_db_to_github_release(auto_confirm)  # Upload the large file to GitHub Releases
-        else:
-            logger.error(f"Failed to push changes: {error}")
-            return code, output, error
+        logger.error(f"Failed to push changes: {error}")
+        return code, output, error
 
     return code, output, error
-
-def get_file_checksum(file_path):
-    sha256_hash = hashlib.sha256()
-    with open(file_path, "rb") as f:
-        for byte_block in iter(lambda: f.read(4096), b""):
-            sha256_hash.update(byte_block)
-    return sha256_hash.hexdigest()
-
-# Update these variables with your correct repository information
-GITHUB_REPO_OWNER = "hasnocool"  # Replace with your GitHub username
-GITHUB_REPO_NAME = "war_thunder_camouflage_installer"  # Replace with your repository name
-
-def get_latest_release_checksum():
-    try:
-        response = requests.get(f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/releases/latest")
-        response.raise_for_status()
-        release_data = response.json()
-        for asset in release_data.get("assets", []):
-            if asset["name"] == os.path.basename(DB_FILE):
-                logger.info(f"Found existing database file in release: {asset['name']}")
-                return asset.get("checksum", "")
-        logger.info("No existing database file found in the latest release.")
-        return ""
-    except requests.RequestException as e:
-        logger.error(f"Failed to retrieve latest release data: {e}")
-        logger.error(f"Make sure the repository '{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}' exists and you have access to it.")
-        return ""
-    
-def upload_db_to_github_release(auto_confirm=False):
-    logger.info("Uploading database file to GitHub release...")
-
-    if not os.path.exists(DB_FILE):
-        logger.error(f"Database file '{DB_FILE}' not found. Ensure the file path is correct.")
-        return False
-
-    local_checksum = get_file_checksum(DB_FILE)
-    logger.info(f"Local checksum: {local_checksum}")
-
-    latest_checksum = get_latest_release_checksum()
-
-    if local_checksum == latest_checksum:
-        logger.info("Database file has not changed since the last release. Skipping upload.")
-        return True
-
-    title, notes = generate_release_args_with_ollama()
-
-    # Remove any markdown formatting from the title
-    title = title.replace('*', '').replace('#', '').strip()
-
-    code, output, error = run_command("gh release view latest", verbose=False)
-    
-    if code != 0:
-        logger.info("No 'latest' release found. Creating a new release.")
-        code, output, error = run_command(f"gh release create latest --title '{title}' --notes '{notes}' {DB_FILE}", verbose=True)
-        if code != 0:
-            logger.error(f"Failed to create a new release: {error}")
-            logger.error(f"Make sure the file '{DB_FILE}' exists and you have write permissions.")
-            return False
-    else:
-        logger.info("'Latest' release found. Updating the existing release.")
-        code, output, error = run_command(f"gh release upload latest '{DB_FILE}' --clobber", verbose=True)
-    
-    if code == 0:
-        logger.info(f"Successfully uploaded {DB_FILE} to the 'latest' release.")
-        return True
-    else:
-        logger.error(f"Failed to upload {DB_FILE} to the 'latest' release: {error}")
-        return False
-
 
 def generate_commit_message_with_ollama(changes_summary):
     try:
@@ -373,10 +268,6 @@ def build_cycle(auto_confirm=False, use_ollama=False):
     code, output, error = git_commit_and_push(auto_confirm, use_ollama)
     if code != 0:
         logger.error(f"Failed to commit and push: {error}")
-        return False
-
-    if not upload_db_to_github_release(auto_confirm):
-        logger.error("Failed to upload database file to GitHub release.")
         return False
 
     logger.info("Build cycle completed successfully!")
