@@ -93,42 +93,19 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
     run_command(f'git commit -m "{commit_message}"', verbose=True)
     return run_command("git push", verbose=True)
 
-def generate_changes_summary():
-    """
-    Generates a summary of changes in the src directory and Cargo.toml.
-    """
-    try:
-        # Get the list of modified files in the src directory and Cargo.toml
-        code, output, _ = run_command("git diff --name-only HEAD")
-        if code != 0:
-            logger.error("Failed to get list of modified files.")
-            return ""
-        
-        modified_files = output.splitlines()
-        changes_summary = []
-
-        for file in modified_files:
-            if file.startswith('src/') or file == 'Cargo.toml':
-                # Get the diff of the file
-                code, file_diff, _ = run_command(f"git diff HEAD {file}")
-                if code == 0 and file_diff.strip():
-                    changes_summary.append(f"Changes in {file}:\n{file_diff}\n")
-        
-        summary_text = "\n".join(changes_summary)
-        logger.info(f"Generated changes summary for Ollama:\n{summary_text}")
-        return summary_text
-    except Exception as e:
-        logger.error(f"Error generating changes summary: {e}")
-        return ""
-
 def generate_commit_message_with_ollama(changes_summary):
     try:
-        # Construct the request payload with a more specific prompt
+        # Construct the request payload with a more specific prompt and example format
         prompt = (
             "Based on the following changes in the source files and Cargo.toml, "
             "generate a concise and factual commit message summarizing these updates. "
-            "Only provide the commit message, nothing else.\n\n"
-            f"{changes_summary}"
+            "Format the commit message as shown in the example below. Only provide the commit message, nothing else.\n\n"
+            "Example commit message format:\n"
+            "- Refactored API endpoints to improve performance and scalability.\n"
+            "- Added error handling to enhance debugging capabilities.\n"
+            "- Fixed UI alignment issue on the dashboard (Fixes #234).\n"
+            "- Updated Cargo dependencies to the latest stable versions.\n\n"
+            f"Changes summary:\n{changes_summary}"
         )
 
         payload = {
@@ -152,6 +129,28 @@ def generate_commit_message_with_ollama(changes_summary):
     except requests.RequestException as e:
         logger.error(f"Error generating commit message with Ollama: {e}")
         return None
+
+
+def generate_changes_summary():
+    """
+    Generates a summary of changes in the src directory and Cargo.toml compared to the latest remote version.
+    """
+    try:
+        # Ensure we have the latest information from the remote
+        run_command("git fetch", verbose=True)
+
+        # Get the diff against the remote branch (e.g., origin/main)
+        code, output, _ = run_command("git diff origin/main -- src/ Cargo.toml")
+        if code != 0:
+            logger.error("Failed to get the diff of modified files against the remote.")
+            return ""
+        
+        changes_summary = output.strip()
+        logger.info(f"Generated changes summary for Ollama:\n{changes_summary}")
+        return changes_summary
+    except Exception as e:
+        logger.error(f"Error generating changes summary: {e}")
+        return ""
 
 def get_project_info():
     try:
