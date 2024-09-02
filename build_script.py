@@ -10,6 +10,7 @@ import configparser
 import requests
 from bs4 import BeautifulSoup
 from packaging import version
+import hashlib
 
 # Configuration
 CARGO_BUILD_OPTIONS = "--release -j50"
@@ -213,6 +214,37 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
 
     return code, output, error
 
+def get_file_checksum(file_path):
+    """
+    Calculate and return the SHA-256 checksum of a file.
+    """
+    sha256_hash = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
+
+def get_latest_release_checksum():
+    """
+    Retrieve the checksum of the latest release's database file from GitHub releases.
+    """
+    try:
+        response = requests.get(f"https://api.github.com/repos/hasnocool/war_thunder_camouflage_installer/releases/latest")
+        response.raise_for_status()
+        release_data = response.json()
+        for asset in release_data.get("assets", []):
+            if asset["name"] == DB_FILE:
+                logger.info(f"Found existing database file in release: {asset['name']}")
+                # Assuming checksum is stored in the release notes or another location
+                # Placeholder logic for extracting checksum from release notes or a specific field
+                # You may need to parse or modify this depending on how you store the checksum
+                return asset.get("checksum", "")
+        logger.info("No existing database file found in the latest release.")
+        return ""
+    except requests.RequestException as e:
+        logger.error(f"Failed to retrieve latest release data: {e}")
+        return ""
+
 def upload_db_to_github_release(auto_confirm=False):
     """
     Upload the database file to the GitHub release page.
@@ -223,6 +255,18 @@ def upload_db_to_github_release(auto_confirm=False):
     if not os.path.exists(DB_FILE):
         logger.error(f"Database file '{DB_FILE}' not found. Ensure the file path is correct.")
         return False
+
+    # Calculate the checksum of the local database file
+    local_checksum = get_file_checksum(DB_FILE)
+    logger.info(f"Local checksum: {local_checksum}")
+
+    # Get the checksum of the latest release database file
+    latest_checksum = get_latest_release_checksum()
+
+    # Compare checksums to determine if an upload is necessary
+    if local_checksum == latest_checksum:
+        logger.info("Database file has not changed since the last release. Skipping upload.")
+        return True
 
     # Generate release title and notes using Ollama
     title, notes = generate_release_args_with_ollama()
