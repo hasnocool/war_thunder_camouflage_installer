@@ -1,4 +1,7 @@
 use eframe::egui;
+use serde::{Deserialize, Serialize};
+use std::fs::File;
+use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver};  
 use std::path::{Path, PathBuf};
@@ -15,6 +18,12 @@ use crate::{
 };
 
 type ImageReceiver = Arc<Mutex<Receiver<(String, Vec<u8>)>>>;
+
+#[derive(Serialize, Deserialize)]
+struct TagCollection {
+    available_tags: Vec<String>,
+    custom_tags: Vec<String>,
+}
 
 pub struct WarThunderCamoInstaller {
     db_conn: rusqlite::Connection,
@@ -98,6 +107,59 @@ impl WarThunderCamoInstaller {
 
         Ok(installer)
     }
+
+    pub fn export_tags(&self, path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+        let tags = TagCollection {
+            available_tags: self.available_tags.clone(),
+            custom_tags: self.custom_tags.clone(),
+        };
+        let json = serde_json::to_string_pretty(&tags)?;
+        let mut file = File::create(path)?;
+        file.write_all(json.as_bytes())?;
+        Ok(())
+    }
+
+    pub fn import_tags(&mut self, path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+        let mut file = File::open(path)?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)?;
+        let tags: TagCollection = serde_json::from_str(&contents)?;
+        self.available_tags = tags.available_tags;
+        self.custom_tags = tags.custom_tags;
+        Ok(())
+    }
+    
+
+    // New UI methods
+    fn show_import_tags_popup(&mut self, ctx: &egui::Context) {
+        if self.show_import_popup {
+            egui::Window::new("Import Tags")
+                .collapsible(false)
+                .resizable(false)
+                .show(ctx, |ui| {
+                    ui.label("Select a JSON file containing tags to import:");
+                    if ui.button("Select File").clicked() {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("JSON", &["json"])
+                            .pick_file() {
+                            match self.import_tags(&path) {
+                                Ok(_) => {
+                                    self.error_message = Some("Tags imported successfully".to_string());
+                                    self.show_import_popup = false;  // Corrected here
+                                }
+                                Err(e) => {
+                                    self.error_message = Some(format!("Failed to import tags: {}", e));
+                                }
+                            }
+                        }
+                    }
+                    if ui.button("Cancel").clicked() {
+                        self.show_import_popup = false;  // Corrected here
+                    }
+                });
+        }
+    }
+
 
     fn select_database_file(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
@@ -491,6 +553,30 @@ impl eframe::App for WarThunderCamoInstaller {
                         self.show_import_popup = true;
                         ui.close_menu();
                     }
+                    if ui.button("Export Tags").clicked() {
+                        // Trigger export tags functionality
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("JSON", &["json"])
+                            .save_file() {
+                            match self.export_tags(&path) {
+                                Ok(_) => self.error_message = Some("Tags exported successfully".to_string()),
+                                Err(e) => self.error_message = Some(format!("Failed to export tags: {}", e)),
+                            }
+                        }
+                        ui.close_menu();
+                    }
+                    if ui.button("Import Tags").clicked() {
+                        // Trigger import tags functionality
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("JSON", &["json"])
+                            .pick_file() {
+                            match self.import_tags(&path) {
+                                Ok(_) => self.error_message = Some("Tags imported successfully".to_string()),
+                                Err(e) => self.error_message = Some(format!("Failed to import tags: {}", e)),
+                            }
+                        }
+                        ui.close_menu();
+                    }
                     if ui.button("Clear Cache").clicked() {
                         if let Err(e) = image_utils::clear_cache() {
                             self.error_message = Some(format!("Failed to clear cache: {}", e));
@@ -508,6 +594,13 @@ impl eframe::App for WarThunderCamoInstaller {
                 });
             });
         });
+
+        // Call other popup functions if needed
+        if self.show_import_popup {
+            self.show_import_tags_popup(ctx);
+        }
+
+        self.show_custom_structure_popup(ctx);
 
         // Header Panel for Search Bar and Tag Filters
         egui::TopBottomPanel::top("header_panel").min_height(70.0).show(ctx, |ui| {
@@ -676,16 +769,50 @@ egui::TopBottomPanel::bottom("footer_panel")
         // Additional Popups
         self.show_custom_structure_popup(ctx);
 
-        // Corrected field usage instead of method call
-        if self.show_about_popup {
-            egui::Window::new("About").show(ctx, |ui| {
-                ui.label("War Thunder Camouflage Installer v1.0.3-beta");
-                ui.label("Developed by XYZ.");
-                if ui.button("Close").clicked() {
-                    self.show_about_popup = false;
+    // Corrected field usage instead of method call
+    if self.show_about_popup {
+        egui::Window::new("About").show(ctx, |ui| {
+            ui.label("War Thunder Camouflage Installer v2024.09.02-072307");
+            ui.label("Developed by hasnocool.");
+
+            // GitHub URL
+            ui.horizontal(|ui| {
+                ui.label("GitHub: ");
+                if ui.hyperlink("https://github.com/hasnocool").clicked() {
+                    // Optionally handle click if needed
+                }
+                if ui.button("Copy").clicked() {
+                    ctx.output_mut(|o| o.copied_text = "https://github.com/hasnocool".to_string());
                 }
             });
-        }
+
+            // Email Address
+            ui.horizontal(|ui| {
+                ui.label("Email: ");
+                ui.label("hasnocool@outlook.com");
+                if ui.button("Copy").clicked() {
+                    ctx.output_mut(|o| o.copied_text = "hasnocool@outlook.com".to_string());
+                }
+            });
+
+            // Dogecoin Address
+            ui.horizontal(|ui| {
+                ui.label("Dogecoin Address: ");
+                ui.label("D6R9njUqnbvPjP1CVceeP1EG7E6h3PzffB");
+                if ui.button("Copy").clicked() {
+                    ctx.output_mut(|o| o.copied_text = "D6R9njUqnbvPjP1CVceeP1EG7E6h3PzffB".to_string());
+                }
+            });
+
+            // Close button
+            if ui.button("Close").clicked() {
+                self.show_about_popup = false;
+            }
+        });
+    }
+
+
+
 
         if self.show_import_popup {
             let mut show_import_popup = self.show_import_popup;
@@ -728,6 +855,8 @@ egui::TopBottomPanel::bottom("footer_panel")
         }
     }
 }
+
+
 
 
 
