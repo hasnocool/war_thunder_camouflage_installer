@@ -21,7 +21,7 @@ OLLAMA_API_URL = "http://192.168.1.223:11434"
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def run_command(command, verbose=False):
+def run_command(command, verbose=True):
     if verbose:
         print(f"Running command: {command}")
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
@@ -93,13 +93,129 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
     run_command(f'git commit -m "{commit_message}"', verbose=True)
     return run_command("git push", verbose=True)
 
+import subprocess
+import os
+import sys
+import time
+import argparse
+import logging
+import shutil
+import toml
+import configparser
+import requests
+from packaging import version
+
+# Configuration
+CARGO_BUILD_OPTIONS = "--release -j50"
+DEFAULT_BUILD_INTERVAL = 3600  # 1 hour
+CONFIG_FILE = "config.ini"
+OLLAMA_MODEL = "llama3"
+OLLAMA_API_URL = "http://192.168.1.223:11434"
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+def run_command(command, verbose=True):
+    if verbose:
+        print(f"Running command: {command}")
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
+    output, error = process.communicate()
+    return process.returncode, output, error
+
+def authenticate_github():
+    config = configparser.ConfigParser()
+    config.read(CONFIG_FILE)
+    
+    if 'github' not in config or 'token' not in config['github']:
+        logger.error("GitHub token not found in config.ini. Please add your GitHub token.")
+        sys.exit(1)
+
+    github_token = config['github']['token']
+
+    logger.info("Authenticating with GitHub using gh CLI...")
+    code, output, error = run_command(f'echo {github_token} | gh auth login --with-token', verbose=True)
+    
+    if code != 0:
+        logger.error(f"Failed to authenticate with GitHub: {error}")
+        sys.exit(1)
+    
+    logger.info("Successfully authenticated with GitHub.")
+
+def check_dependencies(auto_confirm=True):
+    logger.info("Checking for required dependencies...")
+    for cmd in ['git --version', 'cargo --version', 'gh --version']:
+        code, output, error = run_command(cmd, verbose=True)
+        if code != 0:
+            logger.error(f"Dependency check failed for command: {cmd}. Error: {error}")
+            sys.exit(1)
+    print("All dependencies are installed.")
+
+def git_pull(auto_confirm=True):
+    logger.info("Pulling latest changes...")
+    if not auto_confirm and not prompt_user("Do you want to pull the latest changes from the repository?"):
+        return (0, "", "")
+    return run_command("git pull", verbose=True)
+
+def cargo_build(auto_confirm=True):
+    logger.info(f"Building project with options: {CARGO_BUILD_OPTIONS}")
+    if not auto_confirm and not prompt_user("Do you want to build the project?"):
+        return (0, "", "")
+    return run_command(f"cargo build {CARGO_BUILD_OPTIONS}", verbose=True)
+
+def cargo_test(auto_confirm=True):
+    logger.info("Running tests...")
+    if not auto_confirm and not prompt_user("Do you want to run the tests?"):
+        return (0, "", "")
+    return run_command("cargo test", verbose=True)
+
+def git_commit_and_push(auto_confirm=False, use_ollama=False):
+    logger.info("Committing and pushing changes...")
+    if not auto_confirm and not prompt_user("Do you want to commit and push changes?"):
+        return (0, "", "")
+    
+    commit_message = "Automated build commit"
+    
+    if use_ollama:
+        logger.info("Generating commit message using Ollama...")
+        changes_summary = generate_detailed_changes_summary()
+        commit_message = generate_commit_message_with_ollama(changes_summary)
+        if not commit_message:
+            logger.error("Failed to generate commit message using Ollama. Using default commit message.")
+            commit_message = "Automated build commit"
+
+    run_command("git add .", verbose=True)
+    run_command(f'git commit -m "{commit_message}"', verbose=True)
+    return run_command("git push", verbose=True)
+
+def generate_detailed_changes_summary():
+    """
+    Generates a detailed summary of changes in the src directory and Cargo.toml compared to the latest remote version.
+    """
+    try:
+        # Ensure we have the latest information from the remote
+        run_command("git fetch", verbose=True)
+
+        # Get the diff against the remote branch (e.g., origin/main)
+        code, output, _ = run_command("git diff origin/main -- src/ Cargo.toml", verbose=True)
+        if code != 0:
+            logger.error("Failed to get the diff of modified files against the remote.")
+            return ""
+        
+        changes_summary = output.strip()
+        logger.info(f"Generated detailed changes summary for Ollama:\n{changes_summary}")
+        return changes_summary
+    except Exception as e:
+        logger.error(f"Error generating detailed changes summary: {e}")
+        return ""
+
 def generate_commit_message_with_ollama(changes_summary):
     try:
-        # Construct the request payload with a more specific prompt and example format
+        # Construct the request payload with a specific prompt and example format
         prompt = (
             "Based on the following changes in the source files and Cargo.toml, "
             "generate a concise and factual commit message summarizing these updates. "
-            "Format the commit message as shown in the example below. Only provide the commit message, nothing else.\n\n"
+            "Only provide the commit message, nothing else.\n\n"
             "Example commit message format:\n"
             "- Refactored API endpoints to improve performance and scalability.\n"
             "- Added error handling to enhance debugging capabilities.\n"
@@ -129,28 +245,6 @@ def generate_commit_message_with_ollama(changes_summary):
     except requests.RequestException as e:
         logger.error(f"Error generating commit message with Ollama: {e}")
         return None
-
-
-def generate_changes_summary():
-    """
-    Generates a summary of changes in the src directory and Cargo.toml compared to the latest remote version.
-    """
-    try:
-        # Ensure we have the latest information from the remote
-        run_command("git fetch", verbose=True)
-
-        # Get the diff against the remote branch (e.g., origin/main)
-        code, output, _ = run_command("git diff origin/main -- src/ Cargo.toml")
-        if code != 0:
-            logger.error("Failed to get the diff of modified files against the remote.")
-            return ""
-        
-        changes_summary = output.strip()
-        logger.info(f"Generated changes summary for Ollama:\n{changes_summary}")
-        return changes_summary
-    except Exception as e:
-        logger.error(f"Error generating changes summary: {e}")
-        return ""
 
 def get_project_info():
     try:
@@ -353,6 +447,7 @@ def build_cycle(auto_confirm=False, use_ollama=False):
             logger.error("Failed to create and push release.")
 
     return True
+
 
 def main(daemon_mode, build_interval, auto_confirm, use_ollama):
     authenticate_github()
