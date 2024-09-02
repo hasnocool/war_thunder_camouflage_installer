@@ -203,16 +203,8 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
             logger.warning("Large file detected. Excluding from push and proceeding with GitHub release upload.")
             run_command(f"git rm --cached {DB_FILE}", verbose=True)  # Remove the large file from git tracking
             run_command("git commit -m 'Remove large db file from git tracking'", verbose=True)
-            code, output, error = run_command("git push --no-verify", verbose=True)  # Retry pushing without the large file
-            
-            if code != 0:
-                logger.error(f"Failed to push changes after removing large file: {error}")
-                return code, output, error
-
-            # Upload the large file to GitHub Releases
-            if not upload_db_to_github_release(auto_confirm):
-                logger.error("Failed to upload database file to GitHub release.")
-                return code, output, error
+            run_command("git push --no-verify", verbose=True)  # Retry pushing without the large file
+            upload_db_to_github_release(auto_confirm)  # Upload the large file to GitHub Releases
         else:
             logger.error(f"Failed to push changes: {error}")
             return code, output, error
@@ -312,13 +304,24 @@ def generate_commit_message_with_ollama(changes_summary):
         logger.error(f"Error generating commit message with Ollama: {e}")
         return None
 
+def get_project_info():
+    try:
+        with open("Cargo.toml", "r") as f:
+            cargo_toml = toml.load(f)
+        project_name = cargo_toml["package"]["name"]
+        return project_name, None
+    except Exception as e:
+        logger.error(f"Error reading Cargo.toml: {e}")
+        return None, str(e)
+
 def copy_executable(auto_confirm=False):
     logger.info("Copying executable to binaries folder...")
     if not os.path.exists(BINARIES_FOLDER):
         os.makedirs(BINARIES_FOLDER)
 
-    project_name, _ = get_project_info()
+    project_name, error = get_project_info()
     if not project_name:
+        logger.error(f"Failed to get project name: {error}")
         return False
     
     source_path = os.path.join("target", "release", f"{project_name}.exe")
@@ -330,20 +333,11 @@ def copy_executable(auto_confirm=False):
     
     try:
         shutil.copy(source_path, destination_path)
-        logger.info(f"Executable copied successfully to {BINARIES_FOLDER}")
+        logger.info(f"Executable copied successfully to {destination_path}")
         return True
     except Exception as e:
         logger.error(f"Failed to copy executable: {e}")
         return False
-
-def get_project_info():
-    try:
-        with open("Cargo.toml", "r") as f:
-            cargo_toml = toml.load(f)
-        return cargo_toml['package']['name'], cargo_toml['package']['version']
-    except Exception as e:
-        logger.error(f"Failed to read project info from Cargo.toml: {e}")
-        return None, None
 
 def build_cycle(auto_confirm=False, use_ollama=False):
     logger.info(f"Starting build cycle at {time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -359,6 +353,7 @@ def build_cycle(auto_confirm=False, use_ollama=False):
         return False
 
     if not copy_executable(auto_confirm):
+        logger.error("Failed to copy executable to binaries folder.")
         return False
 
     code, output, error = cargo_test(auto_confirm)
@@ -371,8 +366,22 @@ def build_cycle(auto_confirm=False, use_ollama=False):
         logger.error(f"Failed to commit and push: {error}")
         return False
 
+    if not upload_db_to_github_release(auto_confirm):
+        logger.error("Failed to upload database file to GitHub release.")
+        return False
+
     logger.info("Build cycle completed successfully!")
     return True
+
+def prompt_user(message):
+    while True:
+        response = input(f"{message} ").lower()
+        if response in ['y', 'yes']:
+            return True
+        elif response in ['n', 'no']:
+            return False
+        else:
+            print("Please answer with 'y' or 'n'.")
 
 def main(daemon_mode, build_interval, auto_confirm, use_ollama):
     authenticate_github()
