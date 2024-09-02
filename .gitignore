@@ -9,3 +9,6 @@ clippy_combined_output.txt
 clippy_combined_output.txt_final.txt
 clippy_full_files_output.txt
 config.ini
+../wtci_db/war_thunder_camouflages.db
+**/*.db
+*.db
