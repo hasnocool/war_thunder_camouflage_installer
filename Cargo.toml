@@ -1,6 +1,6 @@
 [package]
 name = "war_thunder_camo_installer"
-version = "1.0.6-beta-beta"
+version = "1.0.4-beta"
 edition = "2021"
 
 [dependencies]
