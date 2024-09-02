@@ -316,8 +316,8 @@ def main():
             print("Failed to generate release description. Using default description.")
             release_description = "Release notes not available."
             
-    camouflage_db_path = find_file_recursively("D:\\wtci_db\\war_thunder_camouflages.db")
-    installer_path = find_file_recursively("D:\\wtci\\binaries\\war_thunder_camo_installer.exe")
+    camouflage_db_path = find_file_recursively("..\\wtci_db\\war_thunder_camouflages.db")
+    installer_path = find_file_recursively(".\\binaries\\war_thunder_camo_installer.exe")
 
     if not camouflage_db_path or not installer_path:
         print("Required files not found. Please ensure the following files are present:")
