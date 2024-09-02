@@ -154,6 +154,7 @@ def update_cargo_toml(new_version):
 
 def find_file_recursively(file_name, start_dir='.'):
     """Recursively search for a file starting from a given directory."""
+    start_dir = os.path.abspath(start_dir)
     print(f"Searching for file {file_name} recursively starting from {start_dir}.")
     for root, dirs, files in os.walk(start_dir):
         if file_name in files:
@@ -162,6 +163,7 @@ def find_file_recursively(file_name, start_dir='.'):
             return found_path
     print(f"File not found: {file_name}")
     return None
+
 
 def get_latest_version_tag():
     """Get the latest version tag using gh command in the format vX.Y.Z-beta."""
@@ -346,3 +348,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
