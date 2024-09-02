@@ -203,11 +203,18 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
             logger.warning("Large file detected. Excluding from push and proceeding with GitHub release upload.")
             run_command(f"git rm --cached {DB_FILE}", verbose=True)  # Remove the large file from git tracking
             run_command("git commit -m 'Remove large db file from git tracking'", verbose=True)
-            run_command("git push --no-verify", verbose=True)  # Retry pushing without the large file
-            upload_db_to_github_release(auto_confirm)  # Upload the large file to GitHub Releases
+            code, output, error = run_command("git push --no-verify", verbose=True)  # Retry pushing without the large file
+            
+            if code != 0:
+                logger.error(f"Failed to push changes after removing large file: {error}")
+                return code, output, error
+
+            # Upload the large file to GitHub Releases
+            if not upload_db_to_github_release(auto_confirm):
+                logger.error("Failed to upload database file to GitHub release.")
+                return (1, "", "Failed to upload database file to GitHub release.")
         else:
             logger.error(f"Failed to push changes: {error}")
-            return code, output, error
 
     return code, output, error
 
