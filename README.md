@@ -1,46 +1,38 @@
 ![War Thunder Camouflage Installer Logo](https://github.com/hasnocool/war_thunder_camouflage_installer/blob/master/assets/logo.png?raw=true)
 
-NOTE: You may need git-lfs installed in order to download the database with git, otherwise you will have to manually download it and ensure it is in the same directory as the exe.
-NOTE: Images may take a second to appear as they are being pulled from WT-LIVE we will update the code to alleviate this ASAP
+> **Note:** You may need `git-lfs` installed in order to download the database with git, otherwise you will have to manually download it and ensure it is in the same directory as the executable.
+> **Note:** Images may take a second to appear as they are being pulled from WT-LIVE. The code will be updated to alleviate this ASAP.
 
-THE DATABASE WAS LAST UPDATED 8/29/2024
-
-
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Features](#features)
-3. [Prerequisites](#prerequisites)
-4. [Dependencies](#dependencies)
-5. [Building the Project](#building-the-project)
-6. [Running the Application](#running-the-application)
-7. [Configuration](#configuration)
-8. [Usage Guide](#usage-guide)
-   - [Launching the Application](#launching-the-application)
-   - [Searching for Camouflages](#searching-for-camouflages)
-   - [Viewing Camouflage Details](#viewing-camouflage-details)
-   - [Installing Camouflages](#installing-camouflages)
-   - [Managing War Thunder Skins Directory](#managing-war-thunder-skins-directory)
-9. [Error Handling and Troubleshooting](#error-handling-and-troubleshooting)
-10. [Contributing](#contributing)
-11. [License](#license)
-12. [Acknowledgments](#acknowledgments)
+**Database Last Updated:** 08/29/2024
 
 ## Overview
 
 The **War Thunder Camouflage Installer** is a Rust-based desktop application designed to enhance the experience of War Thunder players by allowing them to easily browse, search, and install custom camouflages for their vehicles. The application leverages the power of Rust's GUI library, `eframe` and `egui`, to provide a seamless user interface and experience.
 
-![image](https://github.com/user-attachments/assets/8db842c7-8047-4741-97ba-98cd9b3865f9)
+![image](https://github.com/user-attachments/assets/b7ba0633-a0fe-401e-8bbc-a9ff04063bb9)
+
+![image](https://github.com/user-attachments/assets/653096e8-1db1-49e8-aab9-46e4d87aeed8)
+
+![image](https://github.com/user-attachments/assets/8de6b3d1-805b-46cb-af68-a6ddb78d7848)
+
+![image](https://github.com/user-attachments/assets/79fd6b1a-9ac5-41e6-a21a-4670d5b7bb47)
+
+![image](https://github.com/user-attachments/assets/ba4fb676-3fa0-4623-a054-0930bfb118fe)
+
+![image](https://github.com/user-attachments/assets/8d420263-99a6-4d4d-a9f3-ea6f2f673f2c)
 
 ## Features
 
 - **Intuitive Search**: Search through the database of camouflages using keywords that match vehicle names, descriptions, or hashtags.
 - **Detailed Camouflage Display**: View comprehensive details about each camouflage, including vehicle name, description, images, file size, number of downloads, likes, and post date.
+- **Tag Filtering**: Filter search results using customizable tags to refine camouflage selection.
+- **Custom Directory Structure**: Define custom installation paths for camouflages using placeholders for directory structures.
 - **Asynchronous Image Loading**: Efficiently load and display images associated with camouflages using asynchronous threading to ensure a smooth user experience.
 - **One-Click Skin Installation**: Download and unzip selected camouflages directly into the specified War Thunder skins directory with a single click.
+- **Import Local Skins**: Import skins from local archives (zip, rar) and install them directly into the game directory.
 - **User-Friendly Interface**: Navigate camouflages, perform searches, and manage installations through a clean and straightforward graphical interface.
 - **Error Management**: Built-in error handling to gracefully manage issues such as missing database files, network errors, or missing directories.
+- **Cache Management**: Efficiently cache and clear camouflage images to optimize performance.
 
 ## Prerequisites
 
@@ -56,35 +48,44 @@ Add these dependencies to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-eframe = "0.14"
-egui = "0.14"
-rusqlite = "0.26"
-image = "0.24"
-rfd = "0.10"
+eframe = { version = "0.22.0", features = ["persistence"] }
+egui = "0.22.0"
+rusqlite = { version = "0.29.0", features = ["bundled"] }
+ehttp = "0.2.0"
+image = "0.24.6"
+base64 = "0.21.0"
+rfd = "0.9"
+zip = "0.5"
 reqwest = { version = "0.11", features = ["blocking"] }
 tempfile = "3.3"
-zip = "0.5"
+thiserror = "1.0"
+parking_lot = "0.12"
+dirs = "5.0"
+rayon = "1.5"
+
+[target.'cfg(windows)'.dependencies.winapi]
+version = "0.3.9"
+features = ["winuser", "windef"]
 ```
 
 ## Building the Project
 
 1. **Clone the Repository**:
 
-```bash
-git clone https://github.com/hasnocool/war_thunder_camouflage_installer.git
-cd war_thunder_camouflage_installer
-```
+    ```bash
+    git clone https://github.com/hasnocool/war_thunder_camouflage_installer.git
+    cd war_thunder_camouflage_installer
+    ```
 
-3. **Build the Project**:
+2. **Build the Project**:
 
-Use Cargo to build the project in release mode for optimized performance:
+    Use Cargo to build the project in release mode for optimized performance:
 
-```bash
-cargo build --release
-```   
+    ```bash
+    cargo build --release
+    ```
 
-
-This command will compile the project and generate an executable in the `target/release` directory.
+    This command will compile the project and generate an executable in the `target/release` directory.
 
 ## Running the Application
 
@@ -99,7 +100,6 @@ Or run the executable directly:
 ```bash
 ./target/release/war_thunder_camo_installer
 ```
-
 Ensure the `war_thunder_camouflages.db` database is in the same directory or update the path in the source code.
 
 ## Configuration
@@ -114,10 +114,14 @@ Ensure the `war_thunder_camouflages.db` database is in the same directory or upd
 1. **Start the Application**: Run the compiled executable. The application will initialize and connect to the specified SQLite database.
 2. **Initialization Messages**: Console outputs will provide status updates, such as successful database connections or errors.
 
+
+
+
 ### Searching for Camouflages
 
 1. **Search Bar**: Enter keywords related to vehicle names, descriptions, or hashtags in the search bar.
 2. **Search Execution**: Press "Enter" or click the "Search" button to filter camouflages based on the input.
+3. **Tag Filters**: Apply tag filters to refine search results based on custom or predefined tags.
 
 ### Viewing Camouflage Details
 
@@ -135,11 +139,22 @@ Ensure the `war_thunder_camouflages.db` database is in the same directory or upd
 1. **Setting the Directory**: Use the "Browse" button in the application to select or update the War Thunder skins directory.
 2. **Directory Path**: Ensure the correct path is displayed and recognized by the application before installing skins.
 
+### Importing Local Skins
+
+1. **Select Directory**: Use the "Import Local Skin" option to select a directory containing skin archives.
+2. **Import Skins**: Click "Import" to extract and install the selected skins into the War Thunder skins directory.
+
+### Custom Directory Structure
+
+1. **Define Structure**: Set a custom directory structure for skin installations using placeholders like `%USERSKINS`, `%NICKNAME`, `%SKIN_NAME`, and `%VEHICLE`.
+2. **Enable Custom Structure**: Toggle the option to use the custom directory structure within the application settings.
+
 ## Error Handling and Troubleshooting
 
 - **Database Errors**: If the database file is missing or corrupted, an error message will be displayed. Ensure the correct database file exists in the specified path.
 - **Network Errors**: If there are issues downloading images or ZIP files, the application will display error messages. Check your internet connection or the validity of the URLs.
 - **File System Errors**: If there are issues writing to the War Thunder skins directory, ensure you have the necessary permissions and that the directory exists.
+- **Cache Issues**: Clear the cache if image loading or display issues occur.
 
 ## Contributing
 
@@ -160,4 +175,5 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ## Acknowledgments
 
 - This application utilizes the `eframe` and `egui` libraries for its graphical user interface.
-- Special thanks to the developers and contributors of the Rust crates used in this project: `rusqlite`, `image`, `reqwest`, `rfd`, `tempfile`, and `zip`.
+- Special thanks to the developers and contributors of the Rust crates used in this project: `rusqlite`, `image`, `reqwest`, `rfd`, `tempfile`, `zip`, `thiserror`, `parking_lot`, `dirs`, and `rayon`.
+
