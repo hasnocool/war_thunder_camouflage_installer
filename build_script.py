@@ -18,7 +18,8 @@ DEFAULT_BUILD_INTERVAL = 3600  # 1 hour
 CONFIG_FILE = "config.ini"
 OLLAMA_MODEL = "llama3"
 OLLAMA_API_URL = "http://192.168.1.223:11434"
-DB_FILE = "db/war_thunder_camouflages.db"  # Ensure this points to the db folder
+DB_FOLDER = "db"
+DB_FILE = os.path.join(DB_FOLDER, "war_thunder_camouflages.db")
 BINARIES_FOLDER = "binaries"
 
 # Set up logging
@@ -62,7 +63,6 @@ def check_dependencies(auto_confirm=True):
 
 def git_pull(auto_confirm=True):
     logger.info("Pulling latest changes...")
-
     code, output, error = run_command("git pull", verbose=True)
     
     if code != 0 and "Your local changes to the following files would be overwritten by merge" in error:
@@ -171,9 +171,13 @@ def generate_release_args_with_ollama():
 
 def git_commit_and_push(auto_confirm=False, use_ollama=False):
     logger.info("Committing and pushing changes...")
-    if not auto_confirm and not prompt_user("Do you want to commit and push changes?"):
+    
+    # Check if there are any changes to commit
+    code, output, error = run_command("git status --porcelain", verbose=False)
+    if not output.strip():
+        logger.info("No changes to commit.")
         return (0, "", "")
-
+    
     changes_summary = generate_detailed_changes_summary()
 
     if changes_summary == "No changes detected.":
@@ -191,15 +195,19 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
     run_command("git add .", verbose=True)
     run_command(f'git commit -m "{commit_message}"', verbose=True)
 
-    # Attempt to push changes, excluding large files
-    code, output, error = run_command(f"git push --force-with-lease --no-verify --exclude='{DB_FILE}'", verbose=True)
+    # Attempt to push changes, handling large file errors
+    code, output, error = run_command("git push --no-verify", verbose=True)
 
     if code != 0:
         if "large files detected" in error.lower() or "exceeds github's file size limit" in error.lower():
             logger.warning("Large file detected. Excluding from push and proceeding with GitHub release upload.")
-            upload_db_to_github_release(auto_confirm)
+            run_command(f"git rm --cached {DB_FILE}", verbose=True)  # Remove the large file from git tracking
+            run_command("git commit -m 'Remove large db file from git tracking'", verbose=True)
+            run_command("git push --no-verify", verbose=True)  # Retry pushing without the large file
+            upload_db_to_github_release(auto_confirm)  # Upload the large file to GitHub Releases
         else:
             logger.error(f"Failed to push changes: {error}")
+            return code, output, error
 
     return code, output, error
 
@@ -218,7 +226,7 @@ def get_latest_release_checksum():
         for asset in release_data.get("assets", []):
             if asset["name"] == os.path.basename(DB_FILE):
                 logger.info(f"Found existing database file in release: {asset['name']}")
-                return asset.get("checksum", "")  # Placeholder for actual checksum retrieval logic
+                return asset.get("checksum", "")
         logger.info("No existing database file found in the latest release.")
         return ""
     except requests.RequestException as e:
@@ -320,6 +328,15 @@ def copy_executable(auto_confirm=False):
         logger.error(f"Failed to copy executable: {e}")
         return False
 
+def get_project_info():
+    try:
+        with open("Cargo.toml", "r") as f:
+            cargo_toml = toml.load(f)
+        return cargo_toml['package']['name'], cargo_toml['package']['version']
+    except Exception as e:
+        logger.error(f"Failed to read project info from Cargo.toml: {e}")
+        return None, None
+
 def build_cycle(auto_confirm=False, use_ollama=False):
     logger.info(f"Starting build cycle at {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
@@ -351,17 +368,7 @@ def build_cycle(auto_confirm=False, use_ollama=False):
         return False
 
     logger.info("Build cycle completed successfully!")
-
     return True
-
-def get_project_info():
-    try:
-        with open("Cargo.toml", "r") as f:
-            cargo_toml = toml.load(f)
-        return cargo_toml['package']['name'], cargo_toml['package']['version']
-    except Exception as e:
-        logger.error(f"Failed to read project info from Cargo.toml: {e}")
-        return None, None
 
 def main(daemon_mode, build_interval, auto_confirm, use_ollama):
     authenticate_github()
@@ -393,12 +400,3 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
         sys.exit(1)
-
-#NOTES
-'''
-have this copy the .exe to the binaries\ folder in the project directory. 
-and lets point the .db to the db\ folder in the project directory.
-This way, you can easily access the latest build without having to navigate to the target\release\ folder. 
-You can also add a check to ensure that the executable is copied successfully before proceeding with other tasks.
-ALSO PLEASE MAKE SURE THE .DB AND THE CREATE RELEASE LOGIC FOLLOWS A SIMILAR FORMAT MAKING SURE WE KEEP ALL EXISTING LOGIC / FUNCTIONALITY
-'''
