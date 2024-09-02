@@ -198,11 +198,14 @@ def find_next_available_tag(current_tag):
 def tag_exists(tag_name):
     """Check if a git tag exists locally or remotely."""
     print(f"Checking if tag exists: {tag_name}")
-    _, _, return_code = run_command(f'git rev-parse {tag_name}')
+
+    # Check if tag exists locally
+    _, _, return_code = run_command(f'git show-ref --tags {tag_name}')
     if return_code == 0:
         print("Tag exists locally.")
         return True
     
+    # Check if tag exists remotely
     _, _, return_code = run_command(f'git ls-remote --tags origin refs/tags/{tag_name}')
     exists_remotely = return_code == 0
     print(f"Tag exists remotely: {exists_remotely}")
