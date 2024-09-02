@@ -11,6 +11,15 @@ The **War Thunder Camouflage Installer** is a Rust-based desktop application des
 
 ![image](https://github.com/user-attachments/assets/b7ba0633-a0fe-401e-8bbc-a9ff04063bb9)
 
+![image](https://github.com/user-attachments/assets/653096e8-1db1-49e8-aab9-46e4d87aeed8)
+
+![image](https://github.com/user-attachments/assets/8de6b3d1-805b-46cb-af68-a6ddb78d7848)
+
+![image](https://github.com/user-attachments/assets/79fd6b1a-9ac5-41e6-a21a-4670d5b7bb47)
+
+![image](https://github.com/user-attachments/assets/ba4fb676-3fa0-4623-a054-0930bfb118fe)
+
+![image](https://github.com/user-attachments/assets/8d420263-99a6-4d4d-a9f3-ea6f2f673f2c)
 
 ## Features
 
@@ -105,15 +114,7 @@ Ensure the `war_thunder_camouflages.db` database is in the same directory or upd
 1. **Start the Application**: Run the compiled executable. The application will initialize and connect to the specified SQLite database.
 2. **Initialization Messages**: Console outputs will provide status updates, such as successful database connections or errors.
 
-![image](https://github.com/user-attachments/assets/653096e8-1db1-49e8-aab9-46e4d87aeed8)
 
-![image](https://github.com/user-attachments/assets/8de6b3d1-805b-46cb-af68-a6ddb78d7848)
-
-![image](https://github.com/user-attachments/assets/79fd6b1a-9ac5-41e6-a21a-4670d5b7bb47)
-
-![image](https://github.com/user-attachments/assets/ba4fb676-3fa0-4623-a054-0930bfb118fe)
-
-![image](https://github.com/user-attachments/assets/8d420263-99a6-4d4d-a9f3-ea6f2f673f2c)
 
 
 ### Searching for Camouflages
