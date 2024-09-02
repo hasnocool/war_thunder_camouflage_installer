@@ -165,8 +165,14 @@ def find_next_available_tag(current_tag):
     return new_tag
 
 def tag_exists(tag_name):
-    """Check if a git tag exists."""
+    """Check if a git tag exists locally or remotely."""
+    # Check if tag exists locally
     _, _, return_code = run_command(f'git rev-parse {tag_name}')
+    if return_code == 0:
+        return True
+    
+    # Check if tag exists remotely
+    _, _, return_code = run_command(f'git ls-remote --tags origin refs/tags/{tag_name}')
     return return_code == 0
 
 def get_diff_with_remote():
@@ -275,7 +281,7 @@ def main():
         if not release_description:
             print("Failed to generate release description. Using default description.")
             release_description = "Release notes not available."
-
+            
     # Search for required files
     camouflage_db_path = find_file_recursively('"D:\wtci_db\war_thunder_camouflages.db"')
     installer_path = find_file_recursively('"D:\wtci\binaries\war_thunder_camo_installer.exe"')
