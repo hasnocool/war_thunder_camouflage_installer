@@ -17,7 +17,6 @@ OLLAMA_MODEL = "llama3"
 OLLAMA_API_URL = "http://192.168.1.223:11434"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BINARIES_FOLDER = "binaries"
-# Update the DB_SOURCE_FOLDER to point to the correct location
 DB_SOURCE_FOLDER = os.path.join(os.path.dirname(SCRIPT_DIR), "wtci_db")
 DB_FILE_NAME = "war_thunder_camouflages.db"
 
@@ -146,9 +145,6 @@ def generate_detailed_changes_summary():
 def git_commit_and_push(auto_confirm=False, use_ollama=False):
     logger.info("Committing and pushing changes...")
     
-    # Ensure the database file is not tracked by Git
-    run_command(f"git rm --cached {os.path.join(BINARIES_FOLDER, DB_FILE_NAME)} -f", verbose=False)
-    
     # Check if there are any changes to commit
     code, output, error = run_command("git status --porcelain", verbose=False)
     if not output.strip():
@@ -252,9 +248,8 @@ def copy_executable(auto_confirm=False):
 def create_release(auto_confirm=False):
     logger.info("Creating a new release...")
     
-    # Use the database file directly from the source folder
+    # Check if the database file exists
     db_source = os.path.join(DB_SOURCE_FOLDER, DB_FILE_NAME)
-    
     if not os.path.exists(db_source):
         logger.error(f"Database file not found at {db_source}")
         return False
@@ -262,12 +257,15 @@ def create_release(auto_confirm=False):
     # Generate release notes (you can modify this to generate more detailed notes)
     release_notes = "New release with updated executable and database."
 
-    # Get the list of files to release
-    files_to_release = [
-        os.path.join(BINARIES_FOLDER, "war_thunder_camo_installer.exe"),
-        db_source
-    ]
-    files_to_release = ' '.join(files_to_release)
+    # Get the executable file
+    project_name, _ = get_project_info()
+    executable_path = os.path.join(BINARIES_FOLDER, f"{project_name}.exe")
+    if not os.path.exists(executable_path):
+        logger.error(f"Executable not found at {executable_path}")
+        return False
+
+    # Files to include in the release
+    files_to_release = f"{executable_path} {db_source}"
 
     # Create a unique tag for the release
     release_tag = f'v{time.strftime("%Y.%m.%d")}-{time.strftime("%H%M%S")}'
@@ -282,7 +280,7 @@ def create_release(auto_confirm=False):
     else:
         logger.error(f"Failed to create release: {error}")
         return False
-
+    
 def build_cycle(auto_confirm=False, use_ollama=False):
     logger.info(f"Starting build cycle at {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
@@ -305,13 +303,13 @@ def build_cycle(auto_confirm=False, use_ollama=False):
         logger.error(f"Tests failed: {error}")
         return False
 
-    if not create_release(auto_confirm):
-        logger.error("Failed to create release.")
-        return False
-
     code, output, error = git_commit_and_push(auto_confirm, use_ollama)
     if code != 0:
         logger.error(f"Failed to commit and push: {error}")
+        return False
+
+    if not create_release(auto_confirm):
+        logger.error("Failed to create release.")
         return False
 
     logger.info("Build cycle completed successfully!")
