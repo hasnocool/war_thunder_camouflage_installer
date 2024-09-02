@@ -1,5 +1,6 @@
 /target
 /cache
+/binaries
 Cargo.lock
 **/*.rs.bk
 .idea/
