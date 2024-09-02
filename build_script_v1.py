@@ -19,10 +19,10 @@ def run_command(command):
     return result.stdout.strip(), result.stderr.strip(), result.returncode
 
 def increment_version(version):
-    """Increment the patch version number, handling suffixes like '-beta'."""
-    # Separate the base version (e.g., '1.0.2') from the suffix (e.g., 'beta')
+    """Increment the patch version number while handling suffixes like '-beta'."""
+    # Split the version into numeric and suffix parts
     if '-' in version:
-        base_version, suffix = version.split('-')
+        base_version, suffix = version.rsplit('-', 1)  # Split from the right side
     else:
         base_version = version
         suffix = None
@@ -35,10 +35,11 @@ def increment_version(version):
 
     new_version = '.'.join(parts)
 
-    # Reattach the suffix if it exists
-    if suffix:
+    # Reattach the suffix if it exists and is not already duplicated
+    if suffix and suffix != 'beta':
         return f"{new_version}-{suffix}"
-    return new_version
+    return f"{new_version}-beta" if suffix == 'beta' else new_version
+
 
 def check_repo_status():
     """Check if there are uncommitted changes."""
