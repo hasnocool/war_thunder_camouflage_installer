@@ -17,6 +17,7 @@ OLLAMA_MODEL = "llama3"
 OLLAMA_API_URL = "http://192.168.1.223:11434"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BINARIES_FOLDER = "binaries"
+# Update the DB_SOURCE_FOLDER to point to the correct location
 DB_SOURCE_FOLDER = os.path.join(os.path.dirname(SCRIPT_DIR), "wtci_db")
 DB_FILE_NAME = "war_thunder_camouflages.db"
 
@@ -145,6 +146,9 @@ def generate_detailed_changes_summary():
 def git_commit_and_push(auto_confirm=False, use_ollama=False):
     logger.info("Committing and pushing changes...")
     
+    # Ensure the database file is not tracked by Git
+    run_command(f"git rm --cached {os.path.join(BINARIES_FOLDER, DB_FILE_NAME)} -f", verbose=False)
+    
     # Check if there are any changes to commit
     code, output, error = run_command("git status --porcelain", verbose=False)
     if not output.strip():
@@ -248,33 +252,32 @@ def copy_executable(auto_confirm=False):
 def create_release(auto_confirm=False):
     logger.info("Creating a new release...")
     
-    # Copy the database file
+    # Use the database file directly from the source folder
     db_source = os.path.join(DB_SOURCE_FOLDER, DB_FILE_NAME)
-    db_destination = os.path.join(BINARIES_FOLDER, DB_FILE_NAME)
     
     if not os.path.exists(db_source):
         logger.error(f"Database file not found at {db_source}")
         return False
     
-    try:
-        shutil.copy(db_source, db_destination)
-        logger.info(f"Database file copied successfully to {db_destination}")
-    except Exception as e:
-        logger.error(f"Failed to copy database file: {e}")
-        return False
-
     # Generate release notes (you can modify this to generate more detailed notes)
     release_notes = "New release with updated executable and database."
 
-    # Get the list of files in the BINARIES_FOLDER
-    files_to_release = ' '.join([os.path.join(BINARIES_FOLDER, f) for f in os.listdir(BINARIES_FOLDER)])
+    # Get the list of files to release
+    files_to_release = [
+        os.path.join(BINARIES_FOLDER, "war_thunder_camo_installer.exe"),
+        db_source
+    ]
+    files_to_release = ' '.join(files_to_release)
+
+    # Create a unique tag for the release
+    release_tag = f'v{time.strftime("%Y.%m.%d")}-{time.strftime("%H%M%S")}'
 
     # Create the release using GitHub CLI
-    release_command = f'gh release create v{time.strftime("%Y.%m.%d")} {files_to_release} --notes "{release_notes}"'
+    release_command = f'gh release create {release_tag} {files_to_release} --notes "{release_notes}"'
     code, output, error = run_command(release_command, verbose=True)
 
     if code == 0:
-        logger.info("Release created successfully")
+        logger.info(f"Release created successfully with tag: {release_tag}")
         return True
     else:
         logger.error(f"Failed to create release: {error}")
