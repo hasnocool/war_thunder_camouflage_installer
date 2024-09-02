@@ -40,7 +40,6 @@ def increment_version(version):
         return f"{new_version}-{suffix}"
     return f"{new_version}-beta" if suffix == 'beta' else new_version
 
-
 def check_repo_status():
     """Check if there are uncommitted changes."""
     _, _, return_code = run_command('git diff-index --quiet HEAD --')
@@ -277,8 +276,8 @@ def main():
             release_description = "Release notes not available."
 
     # Search for required files
-    camouflage_db_path = find_file_recursively('..\wtci_db\war_thunder_camouflages.db')
-    installer_path = find_file_recursively('.\binaries\war_thunder_camo_installer.exe')
+    camouflage_db_path = find_file_recursively('war_thunder_camouflages.db')
+    installer_path = find_file_recursively('war_thunder_camo_installer.exe')
 
     if not camouflage_db_path or not installer_path:
         print("Required files not found. Please ensure the following files are present:")
