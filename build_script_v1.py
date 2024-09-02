@@ -199,17 +199,20 @@ def tag_exists(tag_name):
     """Check if a git tag exists locally or remotely."""
     print(f"Checking if tag exists: {tag_name}")
 
+    # Check if tag exists remotely
+    remote_output, _, remote_return_code = run_command(f'git ls-remote --tags origin refs/tags/{tag_name}')
+    if remote_return_code == 0 and remote_output:
+        print(f"Tag exists remotely: {tag_name}")
+        return True
+
     # Check if tag exists locally
-    _, _, return_code = run_command(f'git show-ref --tags {tag_name}')
-    if return_code == 0:
-        print("Tag exists locally.")
+    local_output, _, local_return_code = run_command(f'git show-ref --tags {tag_name}')
+    if local_return_code == 0 and local_output:
+        print(f"Tag exists locally: {tag_name}")
         return True
     
-    # Check if tag exists remotely
-    _, _, return_code = run_command(f'git ls-remote --tags origin refs/tags/{tag_name}')
-    exists_remotely = return_code == 0
-    print(f"Tag exists remotely: {exists_remotely}")
-    return exists_remotely
+    print(f"Tag does not exist: {tag_name}")
+    return False
 
 def get_diff_with_remote():
     """Get the git diff between the local repository and the remote GitHub repository."""
