@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     };
 
-    let db_path = Path::new("war_thunder_camouflages.db");
+    let db_path = Path::new("binaries/war_thunder_camouflages.db");
 
     println!("Attempting to create WarThunderCamoInstaller...");
 

@@ -1,6 +1,7 @@
 /target
 /cache
 /binaries
+/database
 Cargo.lock
 **/*.rs.bk
 .idea/
