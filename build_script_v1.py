@@ -3,6 +3,7 @@ import subprocess
 import requests
 import logging
 import re
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -43,14 +44,17 @@ def generate_text_with_ollama(prompt):
         logger.error(f"Error connecting to Ollama API: {e}")
         return None
 
+    # Manually parse the concatenated JSON objects
     try:
-        # Attempt to parse JSON response
-        return response.json().get('text', '').strip()
-    except requests.exceptions.JSONDecodeError as e:
-        # Log the entire response content if JSON decoding fails
+        content = response.content.decode('utf-8')
+        json_objects = content.splitlines()
+        full_response = ''.join([json.loads(obj)['response'] for obj in json_objects if obj.strip()])
+        return full_response.strip()
+    except json.JSONDecodeError as e:
         logger.error(f"JSONDecodeError: {e}")
         logger.error(f"Response content: {response.content.decode('utf-8')}")
         return None
+
 
 def generate_commit_message(diff_output):
     """Generate a commit message using Ollama LLM based on the git diff output."""
