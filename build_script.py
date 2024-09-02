@@ -17,7 +17,7 @@ DEFAULT_BUILD_INTERVAL = 3600  # 1 hour
 CONFIG_FILE = "config.ini"
 OLLAMA_MODEL = "llama3"
 OLLAMA_API_URL = "http://192.168.1.223:11434"
-DB_FILE = "your_db_file.db"  # Update with your database file name
+DB_FILE = "war_thunder_camouflages.db"  # Update with your database file name
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -173,22 +173,11 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
     if code != 0 and "This repository is over its data quota" in error:
         logger.warning("Git LFS quota exceeded. Skipping LFS files in the push.")
         
-        # List files tracked by LFS
-        lfs_files_output = run_command("git lfs ls-files", verbose=False)[1].splitlines()
-        if lfs_files_output:
-            lfs_files = [line.split()[2] for line in lfs_files_output if len(line.split()) > 2]
-            logger.info(f"Skipping LFS files: {lfs_files}")
-            
-            # Construct the push command excluding LFS files
-            exclude_lfs_cmd = ["git", "push", "origin", "HEAD"] + [f":{file}" for file in lfs_files]
-            code, output, error = run_command(" ".join(exclude_lfs_cmd), verbose=True)
-            
-            if code == 0:
-                logger.info("Successfully pushed changes excluding LFS files.")
-            else:
-                logger.error(f"Failed to push changes after excluding LFS files: {error}")
-        else:
-            logger.error("No LFS files found or another error occurred.")
+        # Instead of trying to delete the LFS files, we log and continue
+        logger.info(f"Skipping LFS files: {DB_FILE}")
+        logger.info("Proceeding with GitHub release upload instead.")
+        upload_db_to_github_release(auto_confirm)
+
     elif code != 0:
         logger.error(f"Failed to push changes: {error}")
 
