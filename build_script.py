@@ -17,6 +17,7 @@ DEFAULT_BUILD_INTERVAL = 3600  # 1 hour
 CONFIG_FILE = "config.ini"
 OLLAMA_MODEL = "llama3"
 OLLAMA_API_URL = "http://192.168.1.223:11434"
+DB_FILE = "your_db_file.db"  # Update with your database file name
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -192,6 +193,34 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
         logger.error(f"Failed to push changes: {error}")
 
     return code, output, error
+
+def upload_db_to_github_release(auto_confirm=False):
+    """
+    Upload the database file to the GitHub release page.
+    """
+    logger.info("Uploading database file to GitHub release...")
+
+    # Check if the 'latest' release exists
+    code, output, error = run_command("gh release view latest", verbose=False)
+    
+    if code != 0:
+        logger.info("No 'latest' release found. Creating a new release.")
+        code, output, error = run_command("gh release create latest --title 'Latest Database Release' --notes 'Contains the latest version of the database file.'", verbose=True)
+        if code != 0:
+            logger.error(f"Failed to create a new release: {error}")
+            return False
+    else:
+        logger.info("'Latest' release found. Updating the existing release.")
+
+    # Upload the DB file to the release
+    code, output, error = run_command(f"gh release upload latest {DB_FILE} --clobber", verbose=True)
+    
+    if code == 0:
+        logger.info(f"Successfully uploaded {DB_FILE} to the 'latest' release.")
+        return True
+    else:
+        logger.error(f"Failed to upload {DB_FILE} to the 'latest' release: {error}")
+        return False
 
 def generate_commit_message_with_ollama(changes_summary):
     try:
@@ -412,6 +441,10 @@ def build_cycle(auto_confirm=False, use_ollama=False):
     code, output, error = git_commit_and_push(auto_confirm, use_ollama)
     if code != 0:
         logger.error(f"Failed to commit and push: {error}")
+        return False
+
+    if not upload_db_to_github_release(auto_confirm):
+        logger.error("Failed to upload database file to GitHub release.")
         return False
 
     logger.info("Build cycle completed successfully!")
