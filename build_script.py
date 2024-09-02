@@ -189,12 +189,17 @@ def upload_db_to_github_release(auto_confirm=False):
     """
     logger.info("Uploading database file to GitHub release...")
 
+    # Check if the database file exists before attempting to upload
+    if not os.path.exists(DB_FILE):
+        logger.error(f"Database file '{DB_FILE}' not found. Ensure the file path is correct.")
+        return False
+
     # Check if the 'latest' release exists
     code, output, error = run_command("gh release view latest", verbose=False)
     
     if code != 0:
         logger.info("No 'latest' release found. Creating a new release.")
-        code, output, error = run_command("gh release create latest --title 'Latest Database Release' --notes 'Contains the latest version of the database file.'", verbose=True)
+        code, output, error = run_command(f"gh release create latest --title 'Latest Database Release' --notes 'Contains the latest version of the database file.'", verbose=True)
         if code != 0:
             logger.error(f"Failed to create a new release: {error}")
             return False
@@ -331,23 +336,21 @@ def create_release(auto_confirm=False):
         run_command(f'git commit -m "Update version to {new_version}"', verbose=True)
 
     logger.info(f"Creating release v{new_version}...")
-    if not auto_confirm and not prompt_user(f"Do you want to create a release with tag v{new_version}?"):
-        return False
+    if not auto_confirm and prompt_user(f"Do you want to create a release with tag v{new_version}?"):
+        code, output, error = run_command(f'git tag -a v{new_version} -m "Release v{new_version}"', verbose=True)
+        if code != 0:
+            logger.error(f"Failed to create git tag: {error}")
+            return False
 
-    code, output, error = run_command(f'git tag -a v{new_version} -m "Release v{new_version}"', verbose=True)
-    if code != 0:
-        logger.error(f"Failed to create git tag: {error}")
-        return False
+        code, output, error = run_command("git push --tags", verbose=True)
+        if code != 0:
+            logger.error(f"Failed to push git tag: {error}")
+            return False
 
-    code, output, error = run_command("git push --tags", verbose=True)
-    if code != 0:
-        logger.error(f"Failed to push git tag: {error}")
-        return False
-
-    code, output, error = run_command(f"gh release create v{new_version}", verbose=True)
-    if code != 0:
-        logger.error(f"Failed to create GitHub release: {error}")
-        return False
+        code, output, error = run_command(f"gh release create v{new_version}", verbose=True)
+        if code != 0:
+            logger.error(f"Failed to create GitHub release: {error}")
+            return False
 
     logger.info(f"Release v{new_version} created and pushed successfully")
     return True
