@@ -9,16 +9,23 @@
 
 The **War Thunder Camouflage Installer** is a Rust-based desktop application designed to enhance the experience of War Thunder players by allowing them to easily browse, search, and install custom camouflages for their vehicles. The application leverages the power of Rust's GUI library, `eframe` and `egui`, to provide a seamless user interface and experience.
 
+
+### MAIN WINDOW
 ![image](https://github.com/user-attachments/assets/b7ba0633-a0fe-401e-8bbc-a9ff04063bb9)
 
+### FILE MENU
 ![image](https://github.com/user-attachments/assets/6adefb91-cae7-42ba-9726-9794d9353586)
 
+### CUSTOM STRUCTURE POPUP
 ![image](https://github.com/user-attachments/assets/8de6b3d1-805b-46cb-af68-a6ddb78d7848)
 
+### PAGINATION & INSTALL BUTTONS
 ![image](https://github.com/user-attachments/assets/79fd6b1a-9ac5-41e6-a21a-4670d5b7bb47)
 
+### CUSTOM TAGGING INPUTS
 ![image](https://github.com/user-attachments/assets/ba4fb676-3fa0-4623-a054-0930bfb118fe)
 
+### SEARCH BAR & TAG FILTERING
 ![image](https://github.com/user-attachments/assets/8d420263-99a6-4d4d-a9f3-ea6f2f673f2c)
 
 ## Features
