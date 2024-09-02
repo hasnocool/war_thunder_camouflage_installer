@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Ollama configuration
-OLLAMA_API_URL = "http://localhost:11434"
+OLLAMA_API_URL = "http://192.168.1.223:11434"
 OLLAMA_MODEL = "phi3:14b-medium-128k-instruct-q4_K_M"
 
 def run_command(command):
