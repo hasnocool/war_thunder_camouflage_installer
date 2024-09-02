@@ -29,7 +29,6 @@ def run_command(command, verbose=True):
     output, error = process.communicate()
     return process.returncode, output, error
 
-
 def authenticate_github():
     config = configparser.ConfigParser()
     config.read(CONFIG_FILE)
@@ -165,7 +164,34 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
 
     run_command("git add .", verbose=True)
     run_command(f'git commit -m "{commit_message}"', verbose=True)
-    return run_command("git push", verbose=True)
+
+    # Attempt to push changes
+    code, output, error = run_command("git push", verbose=True)
+
+    # Check for LFS quota exceeded error
+    if code != 0 and "This repository is over its data quota" in error:
+        logger.warning("Git LFS quota exceeded. Skipping LFS files in the push.")
+        
+        # List files tracked by LFS
+        lfs_files_output = run_command("git lfs ls-files", verbose=False)[1].splitlines()
+        if lfs_files_output:
+            lfs_files = [line.split()[2] for line in lfs_files_output if len(line.split()) > 2]
+            logger.info(f"Skipping LFS files: {lfs_files}")
+            
+            # Construct the push command excluding LFS files
+            exclude_lfs_cmd = ["git", "push", "origin", "HEAD"] + [f":{file}" for file in lfs_files]
+            code, output, error = run_command(" ".join(exclude_lfs_cmd), verbose=True)
+            
+            if code == 0:
+                logger.info("Successfully pushed changes excluding LFS files.")
+            else:
+                logger.error(f"Failed to push changes after excluding LFS files: {error}")
+        else:
+            logger.error("No LFS files found or another error occurred.")
+    elif code != 0:
+        logger.error(f"Failed to push changes: {error}")
+
+    return code, output, error
 
 def generate_commit_message_with_ollama(changes_summary):
     try:
