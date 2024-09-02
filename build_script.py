@@ -212,9 +212,10 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
             # Upload the large file to GitHub Releases
             if not upload_db_to_github_release(auto_confirm):
                 logger.error("Failed to upload database file to GitHub release.")
-                return (1, "", "Failed to upload database file to GitHub release.")
+                return code, output, error
         else:
             logger.error(f"Failed to push changes: {error}")
+            return code, output, error
 
     return code, output, error
 
@@ -368,10 +369,6 @@ def build_cycle(auto_confirm=False, use_ollama=False):
     code, output, error = git_commit_and_push(auto_confirm, use_ollama)
     if code != 0:
         logger.error(f"Failed to commit and push: {error}")
-        return False
-
-    if not upload_db_to_github_release(auto_confirm):
-        logger.error("Failed to upload database file to GitHub release.")
         return False
 
     logger.info("Build cycle completed successfully!")
