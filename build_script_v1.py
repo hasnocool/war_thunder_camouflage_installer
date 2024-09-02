@@ -156,11 +156,11 @@ def get_latest_version_tag():
 def find_next_available_tag(current_tag):
     """Find the next available tag by incrementing the version until a unique tag is found."""
     new_version = increment_version(current_tag[1:])  # Remove the 'v' prefix and increment
-    new_tag = f"v{new_version}-beta" if '-beta' in current_tag else f"v{new_version}"
+    new_tag = f"v{new_version}" if '-beta' in current_tag else f"v{new_version}"
 
     while tag_exists(new_tag):
         new_version = increment_version(new_version)
-        new_tag = f"v{new_version}-beta" if '-beta' in current_tag else f"v{new_version}"
+        new_tag = f"v{new_version}" if '-beta' in current_tag else f"v{new_version}"
 
     return new_tag
 
@@ -277,8 +277,8 @@ def main():
             release_description = "Release notes not available."
 
     # Search for required files
-    camouflage_db_path = find_file_recursively('war_thunder_camouflages.db')
-    installer_path = find_file_recursively('war_thunder_camo_installer.exe')
+    camouflage_db_path = find_file_recursively('"D:\wtci_db\war_thunder_camouflages.db"')
+    installer_path = find_file_recursively('"D:\wtci\binaries\war_thunder_camo_installer.exe"')
 
     if not camouflage_db_path or not installer_path:
         print("Required files not found. Please ensure the following files are present:")
