@@ -9,8 +9,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Ollama configuration
-OLLAMA_API_URL = "http://127.0.0.1:11434"
-OLLAMA_MODEL = 'phi3'
+OLLAMA_API_URL = "http://localhost:11434/api/generate"
+OLLAMA_MODEL = "llama3-chatqa:latest"
 
 def run_command(command):
     """Run a command and return its output and error (if any)."""
@@ -31,15 +31,25 @@ def check_repo_status():
 
 def generate_text_with_ollama(prompt):
     """Generate text using Ollama LLM based on a provided prompt."""
-    response = requests.post(
-        f"{OLLAMA_API_URL}/generate",
-        json={"model": OLLAMA_MODEL, "prompt": prompt}
-    )
-    
-    if response.status_code == 200:
+    try:
+        response = requests.post(
+            OLLAMA_API_URL,
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt
+            }
+        )
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error connecting to Ollama API: {e}")
+        return None
+
+    try:
+        # Attempt to parse JSON response
         return response.json().get('text', '').strip()
-    else:
-        logger.error("Failed to get response from Ollama API: %s", response.text)
+    except requests.exceptions.JSONDecodeError as e:
+        # Log the entire response content if JSON decoding fails
+        logger.error(f"JSONDecodeError: {e}")
+        logger.error(f"Response content: {response.content.decode('utf-8')}")
         return None
 
 def generate_commit_message(diff_output):
@@ -71,25 +81,11 @@ def generate_release_description(change_log):
     )
 
     return generate_text_with_ollama(prompt)
-    
+
 def handle_large_file_error(error_message):
-    """Handle the case where a large file is detected in the repository."""
-    large_file_match = re.search(r"File (.*?) is .*?MB", error_message)
-    if large_file_match:
-        large_file = large_file_match.group(1)
-        print(f"\nError: Large file detected: {large_file}")
-        print("This file exceeds GitHub's file size limit of 100.00 MB.")
-        print("\nTo resolve this issue, follow these steps:")
-        print(f"1. Remove the large file from Git history:")
-        print(f"   git filter-branch --force --index-filter \"git rm --cached --ignore-unmatch {large_file}\" --prune-empty --tag-name-filter cat -- --all")
-        print("2. Force push the changes:")
-        print("   git push origin --force --all")
-        print("3. Force push the tags:")
-        print("   git push origin --force --tags")
-        print("\nAfter completing these steps, run this script again.")
-    else:
-        print("\nAn error occurred while pushing to the repository.")
-        print("Error message:", error_message)
+    """Handle errors related to large files."""
+    logger.error(f"Large file error: {error_message}")
+    print("Error: A large file error occurred. Please check the log for details.")
 
 def stage_and_commit_changes(commit_message):
     """Stage and commit changes with a generated commit message."""
@@ -137,9 +133,23 @@ def get_latest_version_tag():
     tags.sort(key=lambda s: list(map(int, s.split('.'))))
     latest_version = tags[-1]  # Get the latest version in 'X.Y.Z' format
 
-    # Increment the version and return in the format 'vX.Y.Z-beta'
-    incremented_version = increment_version(latest_version)
-    return f"v{incremented_version}-beta"
+    return f"v{latest_version}-beta"
+
+def find_next_available_tag(current_tag):
+    """Find the next available tag by incrementing the version until a unique tag is found."""
+    new_version = increment_version(current_tag[1:])  # Remove the 'v' prefix and increment
+    new_tag = f"v{new_version}-beta"
+
+    while tag_exists(new_tag):
+        new_version = increment_version(new_version)
+        new_tag = f"v{new_version}-beta"
+
+    return new_tag
+
+def tag_exists(tag_name):
+    """Check if a git tag exists."""
+    _, _, return_code = run_command(f'git rev-parse {tag_name}')
+    return return_code == 0
 
 def get_diff_with_remote():
     """Get the git diff between the local repository and the remote GitHub repository."""
@@ -197,10 +207,12 @@ def main():
             return
 
     # Get the latest version tag and increment it
-    new_tag = get_latest_version_tag()
-    if not new_tag:
+    current_tag = get_latest_version_tag()
+    if not current_tag:
         print("Failed to determine the new tag.")
         return
+
+    new_tag = find_next_available_tag(current_tag)
 
     print(f"Latest tag will be incremented to: {new_tag}")
 
