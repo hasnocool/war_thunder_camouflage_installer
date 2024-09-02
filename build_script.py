@@ -196,18 +196,43 @@ def generate_detailed_changes_summary():
         # Ensure we have the latest information from the remote
         run_command("git fetch", verbose=True)
 
-        # Get the diff against the remote branch (e.g., origin/main)
-        code, output, _ = run_command("git diff origin/main -- src/ Cargo.toml", verbose=True)
+        # Check if the remote branch exists
+        code, branches_output, _ = run_command("git branch -r", verbose=True)
+        if code != 0:
+            logger.error("Failed to retrieve remote branches.")
+            return ""
+
+        # Determine the correct remote branch to use
+        remote_branch = None
+        for line in branches_output.splitlines():
+            if 'origin/main' in line:
+                remote_branch = 'origin/main'
+                break
+            elif 'origin/master' in line:
+                remote_branch = 'origin/master'
+                break
+
+        if not remote_branch:
+            logger.error("No valid remote branch found (e.g., origin/main or origin/master).")
+            return ""
+
+        # Get the diff against the identified remote branch
+        code, output, _ = run_command(f"git diff {remote_branch} -- src/ Cargo.toml", verbose=True)
         if code != 0:
             logger.error("Failed to get the diff of modified files against the remote.")
             return ""
-        
+
+        if not output.strip():
+            logger.info("No changes detected between the local and remote repository.")
+            return "No changes detected."
+
         changes_summary = output.strip()
         logger.info(f"Generated detailed changes summary for Ollama:\n{changes_summary}")
         return changes_summary
     except Exception as e:
         logger.error(f"Error generating detailed changes summary: {e}")
         return ""
+
 
 def generate_commit_message_with_ollama(changes_summary):
     try:
