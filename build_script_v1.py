@@ -3,7 +3,7 @@ import subprocess
 import requests
 import logging
 import re
-import json
+import json  # Make sure to import the json module for handling JSON
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,10 +20,19 @@ def run_command(command):
 
 def increment_version(version):
     """Increment the patch version number."""
-    parts = version.split('.')
+    # Remove non-numeric suffix
+    base_version = version.split('-')[0]
+    parts = base_version.split('.')
+    
     if len(parts) >= 3:
-        parts[2] = str(int(parts[2]) + 1)
-    return '.'.join(parts)
+        parts[2] = str(int(parts[2]) + 1)  # Increment patch version
+    new_version = '.'.join(parts)
+    
+    # Preserve any suffix like '-beta'
+    if '-' in version:
+        suffix = version.split('-')[1]
+        return f"{new_version}-{suffix}"
+    return new_version
 
 def check_repo_status():
     """Check if there are uncommitted changes."""
@@ -54,7 +63,6 @@ def generate_text_with_ollama(prompt):
         logger.error(f"JSONDecodeError: {e}")
         logger.error(f"Response content: {response.content.decode('utf-8')}")
         return None
-
 
 def generate_commit_message(diff_output):
     """Generate a commit message using Ollama LLM based on the git diff output."""
