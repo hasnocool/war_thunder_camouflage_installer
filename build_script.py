@@ -83,101 +83,6 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
     
     if use_ollama:
         logger.info("Generating commit message using Ollama...")
-        changes_summary = generate_changes_summary()
-        commit_message = generate_commit_message_with_ollama(changes_summary)
-        if not commit_message:
-            logger.error("Failed to generate commit message using Ollama. Using default commit message.")
-            commit_message = "Automated build commit"
-
-    run_command("git add .", verbose=True)
-    run_command(f'git commit -m "{commit_message}"', verbose=True)
-    return run_command("git push", verbose=True)
-
-import subprocess
-import os
-import sys
-import time
-import argparse
-import logging
-import shutil
-import toml
-import configparser
-import requests
-from packaging import version
-
-# Configuration
-CARGO_BUILD_OPTIONS = "--release -j50"
-DEFAULT_BUILD_INTERVAL = 3600  # 1 hour
-CONFIG_FILE = "config.ini"
-OLLAMA_MODEL = "llama3"
-OLLAMA_API_URL = "http://192.168.1.223:11434"
-
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-def run_command(command, verbose=True):
-    if verbose:
-        print(f"Running command: {command}")
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
-    output, error = process.communicate()
-    return process.returncode, output, error
-
-def authenticate_github():
-    config = configparser.ConfigParser()
-    config.read(CONFIG_FILE)
-    
-    if 'github' not in config or 'token' not in config['github']:
-        logger.error("GitHub token not found in config.ini. Please add your GitHub token.")
-        sys.exit(1)
-
-    github_token = config['github']['token']
-
-    logger.info("Authenticating with GitHub using gh CLI...")
-    code, output, error = run_command(f'echo {github_token} | gh auth login --with-token', verbose=True)
-    
-    if code != 0:
-        logger.error(f"Failed to authenticate with GitHub: {error}")
-        sys.exit(1)
-    
-    logger.info("Successfully authenticated with GitHub.")
-
-def check_dependencies(auto_confirm=True):
-    logger.info("Checking for required dependencies...")
-    for cmd in ['git --version', 'cargo --version', 'gh --version']:
-        code, output, error = run_command(cmd, verbose=True)
-        if code != 0:
-            logger.error(f"Dependency check failed for command: {cmd}. Error: {error}")
-            sys.exit(1)
-    print("All dependencies are installed.")
-
-def git_pull(auto_confirm=True):
-    logger.info("Pulling latest changes...")
-    if not auto_confirm and not prompt_user("Do you want to pull the latest changes from the repository?"):
-        return (0, "", "")
-    return run_command("git pull", verbose=True)
-
-def cargo_build(auto_confirm=True):
-    logger.info(f"Building project with options: {CARGO_BUILD_OPTIONS}")
-    if not auto_confirm and not prompt_user("Do you want to build the project?"):
-        return (0, "", "")
-    return run_command(f"cargo build {CARGO_BUILD_OPTIONS}", verbose=True)
-
-def cargo_test(auto_confirm=True):
-    logger.info("Running tests...")
-    if not auto_confirm and not prompt_user("Do you want to run the tests?"):
-        return (0, "", "")
-    return run_command("cargo test", verbose=True)
-
-def git_commit_and_push(auto_confirm=False, use_ollama=False):
-    logger.info("Committing and pushing changes...")
-    if not auto_confirm and not prompt_user("Do you want to commit and push changes?"):
-        return (0, "", "")
-    
-    commit_message = "Automated build commit"
-    
-    if use_ollama:
-        logger.info("Generating commit message using Ollama...")
         changes_summary = generate_detailed_changes_summary()
         commit_message = generate_commit_message_with_ollama(changes_summary)
         if not commit_message:
@@ -232,6 +137,31 @@ def generate_detailed_changes_summary():
     except Exception as e:
         logger.error(f"Error generating detailed changes summary: {e}")
         return ""
+
+def git_commit_and_push(auto_confirm=False, use_ollama=False):
+    logger.info("Committing and pushing changes...")
+    if not auto_confirm and not prompt_user("Do you want to commit and push changes?"):
+        return (0, "", "")
+
+    changes_summary = generate_detailed_changes_summary()
+
+    # If no changes are detected, use a default automated commit message
+    if changes_summary == "No changes detected.":
+        commit_message = "Automated commit: No changes detected, repository updated."
+    else:
+        commit_message = "Automated build commit"
+
+        if use_ollama:
+            logger.info("Generating commit message using Ollama...")
+            commit_message = generate_commit_message_with_ollama(changes_summary)
+            if not commit_message:
+                logger.error("Failed to generate commit message using Ollama. Using default commit message.")
+                commit_message = "Automated build commit"
+
+    run_command("git add .", verbose=True)
+    run_command(f'git commit -m "{commit_message}"', verbose=True)
+    return run_command("git push", verbose=True)
+
 
 
 def generate_commit_message_with_ollama(changes_summary):
