@@ -1,6 +1,6 @@
 use eframe::egui;
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver};  // Removed `Sender` from import as it is unused
 use std::path::{Path, PathBuf};
 use std::collections::{HashMap, VecDeque};
 use image::GenericImageView;
@@ -14,11 +14,12 @@ use crate::{
     path_utils,
 };
 
+type ImageReceiver = Arc<Mutex<Receiver<(String, Vec<u8>)>>>;
+
 pub struct WarThunderCamoInstaller {
     db_conn: rusqlite::Connection,
     current_camo: Option<Camouflage>,
-    _image_receiver: Receiver<(String, Vec<u8>)>,
-    image_sender: Sender<(String, Vec<u8>)>,
+    _image_receiver: ImageReceiver, // Keep this as it is used
     _install_receiver: Receiver<Result<(), String>>,
     images: Arc<Mutex<HashMap<String, egui::TextureHandle>>>,
     error_message: Option<String>,
@@ -42,7 +43,7 @@ pub struct WarThunderCamoInstaller {
 impl WarThunderCamoInstaller {
     pub fn new(db_path: &Path) -> Result<Self, InstallerError> {
         let db_conn = rusqlite::Connection::open(db_path)?;
-        let (image_sender, image_receiver) = std::sync::mpsc::channel();
+        let (_image_sender, image_receiver) = std::sync::mpsc::channel();  // Prefix `image_sender` with an underscore
         let (_install_sender, install_receiver) = std::sync::mpsc::channel();
     
         let total_camos = database::update_total_camos(&db_conn)?;
@@ -54,8 +55,7 @@ impl WarThunderCamoInstaller {
         let mut installer = Self {
             db_conn,
             current_camo: None,
-            _image_receiver: image_receiver,
-            image_sender,
+            _image_receiver: Arc::new(Mutex::new(image_receiver)), // Wrap the receiver in Arc<Mutex<>>
             _install_receiver: install_receiver,
             images,
             error_message: None,
@@ -70,7 +70,6 @@ impl WarThunderCamoInstaller {
             use_custom_structure: true,
             show_import_popup: false,
             show_about_popup: false,
-            //cache_dir: image_utils::get_cache_dir(), // Use the get_cache_dir() function here
             selected_import_dir: None,
             avatar_texture: None,
             show_custom_structure_popup: false,
@@ -86,7 +85,7 @@ impl WarThunderCamoInstaller {
     
         Ok(installer)
     }
-
+    
     fn show_about_popup(&mut self, ctx: &egui::Context) {
         if !self.show_about_popup {
             return;
@@ -591,6 +590,10 @@ egui::TopBottomPanel::top("header_panel")
         }
     }
 }
+
+
+
+ 
 
 
 
