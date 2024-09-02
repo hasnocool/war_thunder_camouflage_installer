@@ -5,12 +5,12 @@ import time
 import argparse
 import logging
 import shutil
+import hashlib
 import toml
 import configparser
 import requests
 from bs4 import BeautifulSoup
 from packaging import version
-import hashlib
 
 # Configuration
 CARGO_BUILD_OPTIONS = "--release -j50"
@@ -18,8 +18,7 @@ DEFAULT_BUILD_INTERVAL = 3600  # 1 hour
 CONFIG_FILE = "config.ini"
 OLLAMA_MODEL = "llama3"
 OLLAMA_API_URL = "http://192.168.1.223:11434"
-DB_FOLDER = "db"
-DB_FILE = os.path.join(DB_FOLDER, "war_thunder_camouflages.db")  # Update with your database file path
+DB_FILE = "db/war_thunder_camouflages.db"  # Ensure this points to the db folder
 BINARIES_FOLDER = "binaries"
 
 # Set up logging
@@ -64,7 +63,6 @@ def check_dependencies(auto_confirm=True):
 def git_pull(auto_confirm=True):
     logger.info("Pulling latest changes...")
 
-    # Try pulling changes
     code, output, error = run_command("git pull", verbose=True)
     
     if code != 0 and "Your local changes to the following files would be overwritten by merge" in error:
@@ -72,20 +70,15 @@ def git_pull(auto_confirm=True):
         if not auto_confirm and not prompt_user("Local changes detected. Do you want to automatically commit these changes? (y/n)"):
             return code, output, error
 
-        # Automatically commit or stash changes
         logger.info("Automatically committing or stashing local changes...")
         
-        # Check for uncommitted changes
         code, output, error = run_command("git status --porcelain", verbose=False)
         if output.strip():
-            # Commit changes if there are any
             run_command("git add .", verbose=True)
             run_command('git commit -m "Auto-commit before pulling latest changes"', verbose=True)
         else:
-            # If nothing to commit, stash changes
             run_command("git stash", verbose=True)
 
-        # Retry pulling latest changes
         code, output, error = run_command("git pull", verbose=True)
         if code == 0:
             logger.info("Successfully pulled latest changes after handling local changes.")
@@ -168,7 +161,6 @@ def generate_release_args_with_ollama():
         
         print(f"Raw response from Ollama: {response.text}")
         
-        # Assuming response is structured with 'title' and 'description'
         title, description = response.json().get("response", "").split('\n', 1)
         logger.info(f"Generated release title: {title.strip()}")
         logger.info(f"Generated release description: {description.strip()}")
@@ -199,27 +191,19 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
     run_command("git add .", verbose=True)
     run_command(f'git commit -m "{commit_message}"', verbose=True)
 
-    # Attempt to push changes
-    code, output, error = run_command("git push", verbose=True)
+    # Attempt to push changes, excluding large files
+    code, output, error = run_command(f"git push --force-with-lease --no-verify --exclude='{DB_FILE}'", verbose=True)
 
-    # Check for LFS quota exceeded error
-    if code != 0 and "This repository is over its data quota" in error:
-        logger.warning("Git LFS quota exceeded. Skipping LFS files in the push.")
-        
-        # Instead of trying to delete the LFS files, we log and continue
-        logger.info(f"Skipping LFS files: {DB_FILE}")
-        logger.info("Proceeding with GitHub release upload instead.")
-        upload_db_to_github_release(auto_confirm)
-
-    elif code != 0:
-        logger.error(f"Failed to push changes: {error}")
+    if code != 0:
+        if "large files detected" in error.lower() or "exceeds github's file size limit" in error.lower():
+            logger.warning("Large file detected. Excluding from push and proceeding with GitHub release upload.")
+            upload_db_to_github_release(auto_confirm)
+        else:
+            logger.error(f"Failed to push changes: {error}")
 
     return code, output, error
 
 def get_file_checksum(file_path):
-    """
-    Calculate and return the SHA-256 checksum of a file.
-    """
     sha256_hash = hashlib.sha256()
     with open(file_path, "rb") as f:
         for byte_block in iter(lambda: f.read(4096), b""):
@@ -227,9 +211,6 @@ def get_file_checksum(file_path):
     return sha256_hash.hexdigest()
 
 def get_latest_release_checksum():
-    """
-    Retrieve the checksum of the latest release's database file from GitHub releases.
-    """
     try:
         response = requests.get(f"https://api.github.com/repos/hasnocool/war_thunder_camouflage_installer/releases/latest")
         response.raise_for_status()
@@ -237,10 +218,7 @@ def get_latest_release_checksum():
         for asset in release_data.get("assets", []):
             if asset["name"] == os.path.basename(DB_FILE):
                 logger.info(f"Found existing database file in release: {asset['name']}")
-                # Assuming checksum is stored in the release notes or another location
-                # Placeholder logic for extracting checksum from release notes or a specific field
-                # You may need to parse or modify this depending on how you store the checksum
-                return asset.get("checksum", "")
+                return asset.get("checksum", "")  # Placeholder for actual checksum retrieval logic
         logger.info("No existing database file found in the latest release.")
         return ""
     except requests.RequestException as e:
@@ -248,32 +226,23 @@ def get_latest_release_checksum():
         return ""
 
 def upload_db_to_github_release(auto_confirm=False):
-    """
-    Upload the database file to the GitHub release page.
-    """
     logger.info("Uploading database file to GitHub release...")
 
-    # Check if the database file exists before attempting to upload
     if not os.path.exists(DB_FILE):
         logger.error(f"Database file '{DB_FILE}' not found. Ensure the file path is correct.")
-        return False  # Exit if the file is not found
+        return False
 
-    # Calculate the checksum of the local database file
     local_checksum = get_file_checksum(DB_FILE)
     logger.info(f"Local checksum: {local_checksum}")
 
-    # Get the checksum of the latest release database file
     latest_checksum = get_latest_release_checksum()
 
-    # Compare checksums to determine if an upload is necessary
     if local_checksum == latest_checksum:
         logger.info("Database file has not changed since the last release. Skipping upload.")
         return True
 
-    # Generate release title and notes using Ollama
     title, notes = generate_release_args_with_ollama()
 
-    # Check if the 'latest' release exists
     code, output, error = run_command("gh release view latest", verbose=False)
     
     if code != 0:
@@ -285,7 +254,6 @@ def upload_db_to_github_release(auto_confirm=False):
     else:
         logger.info("'Latest' release found. Updating the existing release.")
 
-    # Upload the DB file to the release
     code, output, error = run_command(f"gh release upload latest '{DB_FILE}' --clobber", verbose=True)
     
     if code == 0:
@@ -328,47 +296,11 @@ def generate_commit_message_with_ollama(changes_summary):
         logger.error(f"Error generating commit message with Ollama: {e}")
         return None
 
-def get_latest_github_version():
-    logger.info("Fetching the latest GitHub release version using the gh CLI...")
-
-    code, output, error = run_command("gh release view --json tagName -q .tagName", verbose=True)
-    if code != 0 or "release not found" in error.lower():
-        logger.warning("Failed to fetch the latest release version using gh CLI, attempting to scrape the GitHub tags page...")
-        return scrape_github_tags_page()
-
-    latest_version = output.strip().lstrip('v')
-    logger.info(f"Latest GitHub release version: {latest_version}")
-    print(f"Latest version from GitHub CLI: {latest_version}")
-    return latest_version
-
-def scrape_github_tags_page():
-    try:
-        tags_page_url = "https://github.com/hasnocool/war_thunder_camouflage_installer/tags"
-        response = requests.get(tags_page_url)
-        response.raise_for_status()
-
-        soup = BeautifulSoup(response.content, 'html.parser')
-        tag_div = soup.find('div', class_='Box-body p-0')
-        if not tag_div:
-            logger.error("No tags found on the GitHub tags page.")
-            return None
-
-        latest_tag = tag_div.find('h2', class_='f4 d-inline').find('a', class_='Link--primary Link')
-        if latest_tag:
-            latest_version = latest_tag.text.strip().lstrip('v')
-            logger.info(f"Scraped latest GitHub tag version: {latest_version}")
-            print(f"Scraped latest version from GitHub tags page: {latest_version}")
-            return latest_version
-        else:
-            logger.error("Failed to find tag version on the GitHub tags page.")
-            return None
-
-    except requests.RequestException as e:
-        logger.error(f"Error scraping GitHub tags page: {e}")
-        return None
-
 def copy_executable(auto_confirm=False):
     logger.info("Copying executable to binaries folder...")
+    if not os.path.exists(BINARIES_FOLDER):
+        os.makedirs(BINARIES_FOLDER)
+
     project_name, _ = get_project_info()
     if not project_name:
         return False
@@ -380,114 +312,13 @@ def copy_executable(auto_confirm=False):
         logger.error(f"Executable not found at {source_path}")
         return False
     
-    # Ensure binaries folder exists
-    os.makedirs(BINARIES_FOLDER, exist_ok=True)
-
     try:
         shutil.copy(source_path, destination_path)
-        logger.info(f"Executable copied successfully to {destination_path}")
+        logger.info(f"Executable copied successfully to {BINARIES_FOLDER}")
         return True
     except Exception as e:
         logger.error(f"Failed to copy executable: {e}")
         return False
-
-def create_release(auto_confirm=False):
-    _, current_version = get_project_info()
-    if not current_version:
-        logger.error("Failed to get current version from Cargo.toml")
-        return False
-
-    latest_github_version = get_latest_github_version()
-    if latest_github_version:
-        if version.parse(current_version) <= version.parse(latest_github_version):
-            new_version = increment_version(latest_github_version, 'patch')
-        else:
-            new_version = current_version
-    else:
-        new_version = current_version
-
-    if new_version != current_version:
-        if not update_cargo_toml(new_version, auto_confirm):
-            return False
-        
-        if not auto_confirm and not prompt_user("Do you want to commit the version update in Cargo.toml?"):
-            return False
-        run_command("git add Cargo.toml", verbose=True)
-        run_command(f'git commit -m "Update version to {new_version}"', verbose=True)
-
-    logger.info(f"Creating release v{new_version}...")
-    if not auto_confirm and prompt_user(f"Do you want to create a release with tag v{new_version}?"):
-        code, output, error = run_command(f'git tag -a v{new_version} -m "Release v{new_version}"', verbose=True)
-        if code != 0:
-            logger.error(f"Failed to create git tag: {error}")
-            return False
-
-        code, output, error = run_command("git push --tags", verbose=True)
-        if code != 0:
-            logger.error(f"Failed to push git tag: {error}")
-            return False
-
-        code, output, error = run_command(f"gh release create v{new_version}", verbose=True)
-        if code != 0:
-            logger.error(f"Failed to create GitHub release: {error}")
-            return False
-
-    logger.info(f"Release v{new_version} created and pushed successfully")
-    return True
-
-def increment_version(version_str, bump_type):
-    v = version.parse(version_str)
-    if isinstance(v, version.Version):
-        major, minor, patch = v.major, v.minor, v.micro
-        if bump_type == 'major':
-            return f"{major + 1}.0.0-beta"
-        elif bump_type == 'minor':
-            return f"{major}.{minor + 1}.0-beta"
-        else:  # patch
-            return f"{major}.{minor}.{patch + 1}-beta"
-    else:
-        return f"{version_str}-1"
-
-def update_cargo_toml(new_version, auto_confirm=False):
-    try:
-        with open("Cargo.toml", "r") as f:
-            lines = f.readlines()
-        
-        in_package_section = False
-
-        with open("Cargo.toml", "w") as f:
-            for line in lines:
-                if line.strip().startswith("[package]"):
-                    in_package_section = True
-                
-                if in_package_section and line.strip().startswith("[") and not line.strip().startswith("[package]"):
-                    in_package_section = False
-                
-                if in_package_section and line.strip().startswith("version ="):
-                    if not auto_confirm and not prompt_user(f"Do you want to update version to {new_version} in Cargo.toml?"):
-                        return False
-                    f.write(f'version = "{new_version}"\n')
-                else:
-                    f.write(line)
-        
-        logger.info(f"Updated Cargo.toml with new version: {new_version}")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to update Cargo.toml: {e}")
-        return False
-
-def prompt_user(message):
-    response = input(f"{message} (y/n): ").lower()
-    return response == 'y'
-
-def get_project_info():
-    try:
-        with open("Cargo.toml", "r") as f:
-            cargo_toml = toml.load(f)
-        return cargo_toml['package']['name'], cargo_toml['package']['version']
-    except Exception as e:
-        logger.error(f"Failed to read project info from Cargo.toml: {e}")
-        return None, None
 
 def build_cycle(auto_confirm=False, use_ollama=False):
     logger.info(f"Starting build cycle at {time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -521,13 +352,16 @@ def build_cycle(auto_confirm=False, use_ollama=False):
 
     logger.info("Build cycle completed successfully!")
 
-    if not auto_confirm and prompt_user("Do you want to create and push a release?"):
-        if create_release(auto_confirm):
-            logger.info("Release created and pushed successfully!")
-        else:
-            logger.error("Failed to create and push release.")
-
     return True
+
+def get_project_info():
+    try:
+        with open("Cargo.toml", "r") as f:
+            cargo_toml = toml.load(f)
+        return cargo_toml['package']['name'], cargo_toml['package']['version']
+    except Exception as e:
+        logger.error(f"Failed to read project info from Cargo.toml: {e}")
+        return None, None
 
 def main(daemon_mode, build_interval, auto_confirm, use_ollama):
     authenticate_github()
@@ -559,9 +393,6 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
         sys.exit(1)
-
-
-
 
 #NOTES
 '''
