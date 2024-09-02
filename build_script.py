@@ -240,7 +240,7 @@ def upload_db_to_github_release(auto_confirm=False):
         logger.info("'Latest' release found. Updating the existing release.")
 
     # Upload the DB file to the release
-    code, output, error = run_command(f"gh release upload latest {DB_FILE} --clobber", verbose=True)
+    code, output, error = run_command(f"gh release upload latest '{DB_FILE}' --clobber", verbose=True)
     
     if code == 0:
         logger.info(f"Successfully uploaded {DB_FILE} to the 'latest' release.")
