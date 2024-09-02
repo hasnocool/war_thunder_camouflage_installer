@@ -218,9 +218,13 @@ def get_file_checksum(file_path):
             sha256_hash.update(byte_block)
     return sha256_hash.hexdigest()
 
+# Update these variables with your correct repository information
+GITHUB_REPO_OWNER = "hasnocool"  # Replace with your GitHub username
+GITHUB_REPO_NAME = "war_thunder_camouflage_installer"  # Replace with your repository name
+
 def get_latest_release_checksum():
     try:
-        response = requests.get(f"https://api.github.com/repos/hasnocool/war_thunder_camouflage_installer/releases/latest")
+        response = requests.get(f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/releases/latest")
         response.raise_for_status()
         release_data = response.json()
         for asset in release_data.get("assets", []):
@@ -231,8 +235,9 @@ def get_latest_release_checksum():
         return ""
     except requests.RequestException as e:
         logger.error(f"Failed to retrieve latest release data: {e}")
+        logger.error(f"Make sure the repository '{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}' exists and you have access to it.")
         return ""
-
+    
 def upload_db_to_github_release(auto_confirm=False):
     logger.info("Uploading database file to GitHub release...")
 
@@ -251,18 +256,21 @@ def upload_db_to_github_release(auto_confirm=False):
 
     title, notes = generate_release_args_with_ollama()
 
+    # Remove any markdown formatting from the title
+    title = title.replace('*', '').replace('#', '').strip()
+
     code, output, error = run_command("gh release view latest", verbose=False)
     
     if code != 0:
         logger.info("No 'latest' release found. Creating a new release.")
-        code, output, error = run_command(f"gh release create latest --title '{title}' --notes '{notes}'", verbose=True)
+        code, output, error = run_command(f"gh release create latest --title '{title}' --notes '{notes}' {DB_FILE}", verbose=True)
         if code != 0:
             logger.error(f"Failed to create a new release: {error}")
+            logger.error(f"Make sure the file '{DB_FILE}' exists and you have write permissions.")
             return False
     else:
         logger.info("'Latest' release found. Updating the existing release.")
-
-    code, output, error = run_command(f"gh release upload latest '{DB_FILE}' --clobber", verbose=True)
+        code, output, error = run_command(f"gh release upload latest '{DB_FILE}' --clobber", verbose=True)
     
     if code == 0:
         logger.info(f"Successfully uploaded {DB_FILE} to the 'latest' release.")
@@ -270,6 +278,7 @@ def upload_db_to_github_release(auto_confirm=False):
     else:
         logger.error(f"Failed to upload {DB_FILE} to the 'latest' release: {error}")
         return False
+
 
 def generate_commit_message_with_ollama(changes_summary):
     try:
