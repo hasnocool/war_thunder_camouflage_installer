@@ -16,7 +16,7 @@ OLLAMA_MODEL = "llama3"
 OLLAMA_API_URL = "http://192.168.1.223:11434"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE_PATH = os.path.join(os.path.dirname(SCRIPT_DIR), "wtci_db", "war_thunder_camouflages.db")
-MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB in bytes
+MAX_FILE_SIZE = 200 * 1024 * 1024  # 100MB in bytes
 
 # Update these variables with your correct repository information
 GITHUB_REPO_OWNER = "hasnocool"  # Replace with your GitHub username
