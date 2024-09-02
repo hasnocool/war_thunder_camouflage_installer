@@ -18,7 +18,9 @@ DEFAULT_BUILD_INTERVAL = 3600  # 1 hour
 CONFIG_FILE = "config.ini"
 OLLAMA_MODEL = "llama3"
 OLLAMA_API_URL = "http://192.168.1.223:11434"
-DB_FILE = "war_thunder_camouflages.db"  # Update with your database file name
+DB_FOLDER = "db"
+DB_FILE = os.path.join(DB_FOLDER, "war_thunder_camouflages.db")  # Update with your database file path
+BINARIES_FOLDER = "binaries"
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -233,7 +235,7 @@ def get_latest_release_checksum():
         response.raise_for_status()
         release_data = response.json()
         for asset in release_data.get("assets", []):
-            if asset["name"] == DB_FILE:
+            if asset["name"] == os.path.basename(DB_FILE):
                 logger.info(f"Found existing database file in release: {asset['name']}")
                 # Assuming checksum is stored in the release notes or another location
                 # Placeholder logic for extracting checksum from release notes or a specific field
@@ -244,8 +246,6 @@ def get_latest_release_checksum():
     except requests.RequestException as e:
         logger.error(f"Failed to retrieve latest release data: {e}")
         return ""
-
-DB_FILE = "war_thunder_camouflages.db"  # Update with the correct path
 
 def upload_db_to_github_release(auto_confirm=False):
     """
@@ -368,23 +368,24 @@ def scrape_github_tags_page():
         return None
 
 def copy_executable(auto_confirm=False):
-    logger.info("Copying executable to current directory...")
+    logger.info("Copying executable to binaries folder...")
     project_name, _ = get_project_info()
     if not project_name:
         return False
     
     source_path = os.path.join("target", "release", f"{project_name}.exe")
+    destination_path = os.path.join(BINARIES_FOLDER, f"{project_name}.exe")
     
     if not os.path.exists(source_path):
         logger.error(f"Executable not found at {source_path}")
         return False
     
-    if not auto_confirm and not prompt_user(f"Do you want to copy the executable {source_path} to the current directory?"):
-        return False
+    # Ensure binaries folder exists
+    os.makedirs(BINARIES_FOLDER, exist_ok=True)
 
     try:
-        shutil.copy(source_path, ".")
-        logger.info(f"Executable copied successfully: {project_name}.exe")
+        shutil.copy(source_path, destination_path)
+        logger.info(f"Executable copied successfully to {destination_path}")
         return True
     except Exception as e:
         logger.error(f"Failed to copy executable: {e}")
@@ -558,3 +559,15 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
         sys.exit(1)
+
+
+
+
+#NOTES
+'''
+have this copy the .exe to the binaries\ folder in the project directory. 
+and lets point the .db to the db\ folder in the project directory.
+This way, you can easily access the latest build without having to navigate to the target\release\ folder. 
+You can also add a check to ensure that the executable is copied successfully before proceeding with other tasks.
+ALSO PLEASE MAKE SURE THE .DB AND THE CREATE RELEASE LOGIC FOLLOWS A SIMILAR FORMAT MAKING SURE WE KEEP ALL EXISTING LOGIC / FUNCTIONALITY
+'''
