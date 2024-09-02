@@ -234,6 +234,93 @@ def copy_executable(auto_confirm=False):
         logger.error(f"Failed to copy executable: {e}")
         return False
 
+def create_release(auto_confirm=False):
+    _, current_version = get_project_info()
+    if not current_version:
+        logger.error("Failed to get current version from Cargo.toml")
+        return False
+
+    latest_github_version = get_latest_github_version()
+    if latest_github_version:
+        if version.parse(current_version) <= version.parse(latest_github_version):
+            new_version = increment_version(latest_github_version, 'patch')
+        else:
+            new_version = current_version
+    else:
+        new_version = current_version
+
+    if new_version != current_version:
+        if not update_cargo_toml(new_version, auto_confirm):
+            return False
+        
+        if not auto_confirm and not prompt_user("Do you want to commit the version update in Cargo.toml?"):
+            return False
+        run_command("git add Cargo.toml", verbose=True)
+        run_command(f'git commit -m "Update version to {new_version}"', verbose=True)
+
+    logger.info(f"Creating release v{new_version}...")
+    if not auto_confirm and not prompt_user(f"Do you want to create a release with tag v{new_version}?"):
+        return False
+
+    code, output, error = run_command(f'git tag -a v{new_version} -m "Release v{new_version}"', verbose=True)
+    if code != 0:
+        logger.error(f"Failed to create git tag: {error}")
+        return False
+
+    code, output, error = run_command("git push --tags", verbose=True)
+    if code != 0:
+        logger.error(f"Failed to push git tag: {error}")
+        return False
+
+    code, output, error = run_command("gh release create v{new_version}", verbose=True)
+    if code != 0:
+        logger.error(f"Failed to create GitHub release: {error}")
+        return False
+
+    logger.info(f"Release v{new_version} created and pushed successfully")
+    return True
+
+def increment_version(version_str, bump_type):
+    v = version.parse(version_str)
+    if isinstance(v, version.Version):
+        major, minor, patch = v.major, v.minor, v.micro
+        if bump_type == 'major':
+            return f"{major + 1}.0.0-beta"
+        elif bump_type == 'minor':
+            return f"{major}.{minor + 1}.0-beta"
+        else:  # patch
+            return f"{major}.{minor}.{patch + 1}-beta"
+    else:
+        return f"{version_str}-1"
+
+def update_cargo_toml(new_version, auto_confirm=False):
+    try:
+        with open("Cargo.toml", "r") as f:
+            lines = f.readlines()
+        
+        in_package_section = False
+
+        with open("Cargo.toml", "w") as f:
+            for line in lines:
+                if line.strip().startswith("[package]"):
+                    in_package_section = True
+                
+                if in_package_section and line.strip().startswith("[") and not line.strip().startswith("[package]"):
+                    in_package_section = False
+                
+                if in_package_section and line.strip().startswith("version ="):
+                    if not auto_confirm and not prompt_user(f"Do you want to update version to {new_version} in Cargo.toml?"):
+                        return False
+                    f.write(f'version = "{new_version}"\n')
+                else:
+                    f.write(line)
+        
+        logger.info(f"Updated Cargo.toml with new version: {new_version}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to update Cargo.toml: {e}")
+        return False
+
 def prompt_user(message):
     response = input(f"{message} (y/n): ").lower()
     return response == 'y'
