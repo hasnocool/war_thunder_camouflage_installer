@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 # Ollama configuration
 OLLAMA_API_URL = "http://192.168.1.223:11434"
-OLLAMA_MODEL = 'phi3:14b-medium-128k-instruct-q4_K_M'
+OLLAMA_MODEL = 'phi3'
 
 def run_command(command):
     """Run a command and return its output and error (if any)."""
