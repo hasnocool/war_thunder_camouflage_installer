@@ -25,9 +25,10 @@ logger = logging.getLogger(__name__)
 def run_command(command, verbose=True):
     if verbose:
         print(f"Running command: {command}")
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True, encoding='utf-8', errors='ignore')
     output, error = process.communicate()
     return process.returncode, output, error
+
 
 def authenticate_github():
     config = configparser.ConfigParser()
