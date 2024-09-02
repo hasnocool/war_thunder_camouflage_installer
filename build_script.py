@@ -15,8 +15,7 @@ CONFIG_FILE = "config.ini"
 OLLAMA_MODEL = "llama3"
 OLLAMA_API_URL = "http://192.168.1.223:11434"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_SOURCE_FOLDER = os.path.join(os.path.dirname(SCRIPT_DIR), "wtci_db")
-DB_FILE_NAME = "war_thunder_camouflages.db"
+DB_FILE_PATH = os.path.join(os.path.dirname(SCRIPT_DIR), "wtci_db", "war_thunder_camouflages.db")
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB in bytes
 
 # Update these variables with your correct repository information
@@ -176,6 +175,7 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
 
     return code, output, error
 
+
 def generate_commit_message_with_ollama(changes_summary):
     try:
         prompt = (
@@ -211,7 +211,7 @@ def generate_commit_message_with_ollama(changes_summary):
 
 def get_project_info():
     try:
-        with open("Cargo.toml", "r") as f:
+        with open(os.path.join(SCRIPT_DIR, "Cargo.toml"), "r") as f:
             cargo_toml = toml.load(f)
         project_name = cargo_toml["package"]["name"]
         return project_name, None
@@ -257,19 +257,18 @@ def create_release(auto_confirm=False):
         return False
     
     executable_path = os.path.join(SCRIPT_DIR, "target", "release", f"{project_name}.exe")
-    db_path = os.path.join(DB_SOURCE_FOLDER, DB_FILE_NAME)
 
     # Check if files exist
     if not os.path.exists(executable_path):
         logger.error(f"Executable not found at {executable_path}")
         return False
-    if not os.path.exists(db_path):
-        logger.error(f"Database file not found at {db_path}")
+    if not os.path.exists(DB_FILE_PATH):
+        logger.error(f"Database file not found at {DB_FILE_PATH}")
         return False
 
     # Files to include in the release
     files_to_release = []
-    for file_path in [executable_path, db_path]:
+    for file_path in [executable_path, DB_FILE_PATH]:
         file_size = os.path.getsize(file_path)
         if file_size <= MAX_FILE_SIZE:
             files_to_release.append(file_path)
