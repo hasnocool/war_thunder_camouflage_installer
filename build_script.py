@@ -6,8 +6,8 @@ import argparse
 import logging
 import shutil
 import toml
-import configparser  # Import ConfigParser to read config.ini
-import requests  # For API calls
+import configparser
+import requests
 from packaging import version
 
 # Configuration
@@ -15,7 +15,7 @@ CARGO_BUILD_OPTIONS = "--release -j50"
 DEFAULT_BUILD_INTERVAL = 3600  # 1 hour
 CONFIG_FILE = "config.ini"
 OLLAMA_MODEL = "llama3"
-OLLAMA_API_URL = "http://192.168.1.223:11434"  # Assuming Ollama is running locally on this port
+OLLAMA_API_URL = "http://192.168.1.223:11434"
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -29,7 +29,6 @@ def run_command(command, verbose=False):
     return process.returncode, output, error
 
 def authenticate_github():
-    # Read GitHub token from config.ini
     config = configparser.ConfigParser()
     config.read(CONFIG_FILE)
     
@@ -39,7 +38,6 @@ def authenticate_github():
 
     github_token = config['github']['token']
 
-    # Authenticate gh CLI with the token
     logger.info("Authenticating with GitHub using gh CLI...")
     code, output, error = run_command(f'echo {github_token} | gh auth login --with-token', verbose=True)
     
@@ -49,7 +47,7 @@ def authenticate_github():
     
     logger.info("Successfully authenticated with GitHub.")
 
-def check_dependencies(auto_confirm=False):
+def check_dependencies(auto_confirm=True):
     logger.info("Checking for required dependencies...")
     for cmd in ['git --version', 'cargo --version', 'gh --version']:
         code, output, error = run_command(cmd, verbose=True)
@@ -58,19 +56,19 @@ def check_dependencies(auto_confirm=False):
             sys.exit(1)
     print("All dependencies are installed.")
 
-def git_pull(auto_confirm=False):
+def git_pull(auto_confirm=True):
     logger.info("Pulling latest changes...")
     if not auto_confirm and not prompt_user("Do you want to pull the latest changes from the repository?"):
         return (0, "", "")
     return run_command("git pull", verbose=True)
 
-def cargo_build(auto_confirm=False):
+def cargo_build(auto_confirm=True):
     logger.info(f"Building project with options: {CARGO_BUILD_OPTIONS}")
     if not auto_confirm and not prompt_user("Do you want to build the project?"):
         return (0, "", "")
     return run_command(f"cargo build {CARGO_BUILD_OPTIONS}", verbose=True)
 
-def cargo_test(auto_confirm=False):
+def cargo_test(auto_confirm=True):
     logger.info("Running tests...")
     if not auto_confirm and not prompt_user("Do you want to run the tests?"):
         return (0, "", "")
@@ -85,7 +83,8 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
     
     if use_ollama:
         logger.info("Generating commit message using Ollama...")
-        commit_message = generate_commit_message_with_ollama()
+        changes_summary = generate_changes_summary()
+        commit_message = generate_commit_message_with_ollama(changes_summary)
         if not commit_message:
             logger.error("Failed to generate commit message using Ollama. Using default commit message.")
             commit_message = "Automated build commit"
@@ -94,12 +93,47 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
     run_command(f'git commit -m "{commit_message}"', verbose=True)
     return run_command("git push", verbose=True)
 
-def generate_commit_message_with_ollama():
+def generate_changes_summary():
+    """
+    Generates a summary of changes in the src directory and Cargo.toml.
+    """
     try:
-        # Construct the request payload based on the working curl command
+        # Get the list of modified files in the src directory and Cargo.toml
+        code, output, _ = run_command("git diff --name-only HEAD")
+        if code != 0:
+            logger.error("Failed to get list of modified files.")
+            return ""
+        
+        modified_files = output.splitlines()
+        changes_summary = []
+
+        for file in modified_files:
+            if file.startswith('src/') or file == 'Cargo.toml':
+                # Get the diff of the file
+                code, file_diff, _ = run_command(f"git diff HEAD {file}")
+                if code == 0 and file_diff.strip():
+                    changes_summary.append(f"Changes in {file}:\n{file_diff}\n")
+        
+        summary_text = "\n".join(changes_summary)
+        logger.info(f"Generated changes summary for Ollama:\n{summary_text}")
+        return summary_text
+    except Exception as e:
+        logger.error(f"Error generating changes summary: {e}")
+        return ""
+
+def generate_commit_message_with_ollama(changes_summary):
+    try:
+        # Construct the request payload with a more specific prompt
+        prompt = (
+            "Based on the following changes in the source files and Cargo.toml, "
+            "generate a concise and factual commit message summarizing these updates. "
+            "Only provide the commit message, nothing else.\n\n"
+            f"{changes_summary}"
+        )
+
         payload = {
             "model": "llama3",
-            "prompt": "Generate a concise and descriptive commit message summarizing recent updates and changes to a software project.",
+            "prompt": prompt,
             "stream": False
         }
         
@@ -112,13 +146,12 @@ def generate_commit_message_with_ollama():
         print(f"Raw response from Ollama: {response.text}")
         
         # Parse the JSON response
-        commit_message = response.json().get("text", "").strip()
+        commit_message = response.json().get("response", "").strip()
         logger.info(f"Generated commit message: {commit_message}")
         return commit_message
     except requests.RequestException as e:
         logger.error(f"Error generating commit message with Ollama: {e}")
         return None
-
 
 def get_project_info():
     try:
@@ -204,7 +237,6 @@ def increment_version(version_str, bump_type):
         else:  # patch
             return f"{major}.{minor}.{patch + 1}-beta"
     else:
-        # If it's not a valid version, just append -1 to the string
         return f"{version_str}-1"
 
 def update_cargo_toml(new_version, auto_confirm=False):
@@ -212,20 +244,16 @@ def update_cargo_toml(new_version, auto_confirm=False):
         with open("Cargo.toml", "r") as f:
             lines = f.readlines()
         
-        # Flag to track if we're in the [package] section
         in_package_section = False
 
         with open("Cargo.toml", "w") as f:
             for line in lines:
-                # Check for the start of the [package] section
                 if line.strip().startswith("[package]"):
                     in_package_section = True
                 
-                # Check for the end of the [package] section
                 if in_package_section and line.strip().startswith("[") and not line.strip().startswith("[package]"):
                     in_package_section = False
                 
-                # Update version only if in [package] section
                 if in_package_section and line.strip().startswith("version ="):
                     if not auto_confirm and not prompt_user(f"Do you want to update version to {new_version} in Cargo.toml?"):
                         return False
@@ -252,15 +280,14 @@ def create_release(auto_confirm=False):
             bump_type = determine_version_bump(changed_files)
             new_version = increment_version(latest_github_version, bump_type)
         else:
-            new_version = current_version  # Cargo.toml version is already ahead
+            new_version = current_version
     else:
-        new_version = current_version  # Use the version from Cargo.toml if no GitHub release found
+        new_version = current_version
 
     if new_version != current_version:
         if not update_cargo_toml(new_version, auto_confirm):
             return False
         
-        # Commit the Cargo.toml changes
         if not auto_confirm and not prompt_user("Do you want to commit the version update in Cargo.toml?"):
             return False
         run_command("git add Cargo.toml", verbose=True)
@@ -280,7 +307,7 @@ def create_release(auto_confirm=False):
         logger.error(f"Failed to push git tag: {error}")
         return False
 
-    code, output, error = run_command("git push", verbose=True)  # Push the commit with updated Cargo.toml
+    code, output, error = run_command("git push", verbose=True)
     if code != 0:
         logger.error(f"Failed to push Cargo.toml update: {error}")
         return False
@@ -295,29 +322,24 @@ def prompt_user(message):
 def build_cycle(auto_confirm=False, use_ollama=False):
     logger.info(f"Starting build cycle at {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
-    # Pull latest changes
     code, output, error = git_pull(auto_confirm)
     if code != 0:
         logger.error(f"Failed to pull latest changes: {error}")
         return False
 
-    # Build the project
     code, output, error = cargo_build(auto_confirm)
     if code != 0:
         logger.error(f"Build failed: {error}")
         return False
 
-    # Copy the executable
     if not copy_executable(auto_confirm):
         return False
 
-    # Run tests
     code, output, error = cargo_test(auto_confirm)
     if code != 0:
         logger.error(f"Tests failed: {error}")
         return False
 
-    # If we got here, everything succeeded. Commit and push.
     code, output, error = git_commit_and_push(auto_confirm, use_ollama)
     if code != 0:
         logger.error(f"Failed to commit and push: {error}")
@@ -325,7 +347,6 @@ def build_cycle(auto_confirm=False, use_ollama=False):
 
     logger.info("Build cycle completed successfully!")
 
-    # Prompt for release creation
     if not auto_confirm and prompt_user("Do you want to create and push a release?"):
         if create_release(auto_confirm):
             logger.info("Release created and pushed successfully!")
@@ -335,7 +356,7 @@ def build_cycle(auto_confirm=False, use_ollama=False):
     return True
 
 def main(daemon_mode, build_interval, auto_confirm, use_ollama):
-    authenticate_github()  # Authenticate with GitHub using the token
+    authenticate_github()
     check_dependencies(auto_confirm)
 
     while True:
@@ -353,7 +374,6 @@ if __name__ == "__main__":
     parser.add_argument("--use-ollama", action="store_true", help="Use Ollama API to generate commit messages")
     args = parser.parse_args()
 
-    # Read config.ini for use_ollama setting
     config = configparser.ConfigParser()
     config.read(CONFIG_FILE)
     use_ollama = config.getboolean('ollama', 'use_ollama', fallback=False) or args.use_ollama
