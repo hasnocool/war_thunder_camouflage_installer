@@ -1,5 +1,6 @@
 /target
 /cache
+/notes
 /binaries
 Cargo.lock
 **/*.rs.bk
