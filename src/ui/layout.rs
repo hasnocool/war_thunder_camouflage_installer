@@ -1,3 +1,5 @@
+// src/ui/layout.rs
+
 use eframe::egui;
 use super::app::WarThunderCamoInstaller;
 use super::components;
@@ -17,7 +19,7 @@ fn top_panel(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
 
     egui::TopBottomPanel::top("header_panel").min_height(70.0).show(ctx, |ui| {
         components::search_bar(app, ui);
-        components::tag_filters(app, ui);
+        components::tag_filters(app, ui); // Corrected to use components::tag_filters
     });
 }
 

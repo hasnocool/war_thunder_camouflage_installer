@@ -7,20 +7,20 @@ use crate::image_utils;
 use crate::file_operations;
 use crate::path_utils;
 use super::app::WarThunderCamoInstaller;
-use super::handlers; // <-- Add this line
 use image::GenericImageView;
 use reqwest;
 use zip;
 use std::fs::{self, File};
 use std::io::{self, Cursor};
 
-
+// Function to set the War Thunder skins directory
 pub fn set_wt_skins_directory(app: &mut WarThunderCamoInstaller) {
     if let Some(path) = rfd::FileDialog::new().pick_folder() {
         app.wt_skins_dir = Some(path);
     }
 }
 
+// Function to select the database file
 pub fn select_database_file(app: &mut WarThunderCamoInstaller) {
     if let Some(path) = rfd::FileDialog::new()
         .add_filter("SQLite Database", &["db", "sqlite"])
@@ -56,14 +56,15 @@ pub fn select_database_file(app: &mut WarThunderCamoInstaller) {
     }
 }
 
+
+// Keep the perform_search function as it is
 pub fn perform_search(app: &mut WarThunderCamoInstaller) {
     let query = if app.search_query.is_empty() { None } else { Some(app.search_query.as_str()) };
 
-    // Ensure both branches return `&Vec<String>`
     let selected_tags = if app.tag_filtering_enabled {
         &app.selected_tags
     } else {
-        &Vec::new() // Create a new empty Vec and return a reference to it
+        &Vec::new()
     };
 
     match app.fetch_camouflages(query, selected_tags) {
@@ -90,57 +91,8 @@ pub fn perform_search(app: &mut WarThunderCamoInstaller) {
 }
 
 
-pub fn toggle_tag_filtering(app: &mut WarThunderCamoInstaller) {
-    app.tag_filtering_enabled = !app.tag_filtering_enabled;
-    perform_search(app);
-}
 
-pub fn tag_filters(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        ui.label("Filter by tags:");
-        if ui.checkbox(&mut app.tag_filtering_enabled, "Enable Tag Filtering").changed() {
-            super::handlers::toggle_tag_filtering(app); // Update the prefix to super::handlers
-        }
-    });
-
-    if app.tag_filtering_enabled {
-        ui.horizontal(|ui| {
-            let all_tags: Vec<_> = app.available_tags.iter().chain(app.custom_tags.iter()).cloned().collect();
-            let mut tags_changed = false;
-
-            for tag in all_tags {
-                let is_selected = app.selected_tags.contains(&tag);
-                let mut checkbox_state = is_selected;
-
-                if ui.checkbox(&mut checkbox_state, &tag).changed() {
-                    super::handlers::toggle_tag(app, &tag); // Update the prefix to super::handlers
-                    tags_changed = true;
-                }
-            }
-
-            if tags_changed {
-                super::handlers::perform_search(app); // Update the prefix to super::handlers
-            }
-        });
-    }
-
-    if ui.button("Apply Filter").clicked() {
-        super::handlers::perform_search(app); // Update the prefix to super::handlers
-    }
-}
-
-
-
-// Update the toggle_tag function to be used in the UI
-pub fn toggle_tag(app: &mut WarThunderCamoInstaller, tag: &str) {
-    if app.selected_tags.contains(&tag.to_string()) {
-        app.selected_tags.retain(|t| t != tag);
-    } else {
-        app.selected_tags.push(tag.to_string());
-    }
-    perform_search(app);
-}
-
+// Function to add custom tags input by the user
 pub fn add_custom_tags(app: &mut WarThunderCamoInstaller) {
     let new_tags: Vec<String> = app.custom_tags_input
         .split(',')
@@ -153,6 +105,7 @@ pub fn add_custom_tags(app: &mut WarThunderCamoInstaller) {
     app.custom_tags_input.clear();
 }
 
+// Function to install a skin from a given ZIP URL
 pub fn install_skin(app: &mut WarThunderCamoInstaller, zip_url: &str) {
     if let Some(skins_directory) = &app.wt_skins_dir {
         let custom_structure = if app.use_custom_structure {
@@ -185,18 +138,14 @@ pub fn install_skin(app: &mut WarThunderCamoInstaller, zip_url: &str) {
     }
 }
 
+// Function to download and install a skin from a ZIP URL
 fn download_and_install_skin(zip_url: &str, out_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    // Download the ZIP file
     let response = reqwest::blocking::get(zip_url)?;
     let content = response.bytes()?;
 
-    // Create a cursor to read the ZIP content
     let mut zip = zip::ZipArchive::new(Cursor::new(content))?;
-
-    // Create the output directory if it doesn't exist
     fs::create_dir_all(out_dir)?;
 
-    // Extract the ZIP contents
     for i in 0..zip.len() {
         let mut file = zip.by_index(i)?;
         let outpath = out_dir.join(file.mangled_name());
@@ -213,7 +162,6 @@ fn download_and_install_skin(zip_url: &str, out_dir: &Path) -> Result<(), Box<dy
             io::copy(&mut file, &mut outfile)?;
         }
 
-        // Get and Set permissions
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -226,6 +174,7 @@ fn download_and_install_skin(zip_url: &str, out_dir: &Path) -> Result<(), Box<dy
     Ok(())
 }
 
+// Functions to handle navigation in camouflages
 pub fn show_next_camo(app: &mut WarThunderCamoInstaller) {
     if app.search_mode {
         if app.current_index < app.search_results.len() - 1 {
@@ -262,6 +211,7 @@ pub fn show_previous_camo(app: &mut WarThunderCamoInstaller) {
     }
 }
 
+// Function to update the image grid with loaded images
 pub fn update_image_grid(app: &WarThunderCamoInstaller, ctx: &egui::Context) {
     let mut loading = app.loading_images.lock().unwrap();
     if *loading {
@@ -313,7 +263,7 @@ pub fn update_image_grid(app: &WarThunderCamoInstaller, ctx: &egui::Context) {
     });
 }
 
-// Update load_current_camo_images to use a string slice
+// Function to load the current camouflage's images
 pub fn load_current_camo_images(app: &WarThunderCamoInstaller) {
     if let Some(camo) = &app.current_camo {
         let mut queue = app.image_load_queue.lock().unwrap();
@@ -325,6 +275,7 @@ pub fn load_current_camo_images(app: &WarThunderCamoInstaller) {
     }
 }
 
+// Function to export tags to a JSON file
 pub fn export_tags(app: &mut WarThunderCamoInstaller) {
     if let Some(path) = rfd::FileDialog::new()
         .add_filter("JSON", &["json"])
@@ -337,6 +288,7 @@ pub fn export_tags(app: &mut WarThunderCamoInstaller) {
     }
 }
 
+// Function to import tags from a JSON file
 pub fn import_tags(app: &mut WarThunderCamoInstaller) {
     if let Some(path) = rfd::FileDialog::new()
         .add_filter("JSON", &["json"])
@@ -349,6 +301,7 @@ pub fn import_tags(app: &mut WarThunderCamoInstaller) {
     }
 }
 
+// Function to clear the cache
 pub fn clear_cache(app: &mut WarThunderCamoInstaller) {
     if let Err(e) = image_utils::clear_cache() {
         app.error_message = Some(format!("Failed to clear cache: {}", e));
@@ -357,6 +310,7 @@ pub fn clear_cache(app: &mut WarThunderCamoInstaller) {
     }
 }
 
+// Function to show the custom structure popup
 pub fn show_custom_structure_popup(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
     if app.show_custom_structure_popup {
         egui::Window::new("Custom Structure Settings")
@@ -375,12 +329,12 @@ pub fn show_custom_structure_popup(app: &mut WarThunderCamoInstaller, ctx: &egui
     }
 }
 
+// Function to show the about popup
 pub fn show_about_popup(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
     if app.show_about_popup {
         egui::Window::new("About").show(ctx, |ui| {
             ui.label("War Thunder Camouflage Installer v2024.09.02-072307");
             ui.label("Developed by hasnocool.");
-            // Add more about information here...
             if ui.button("Close").clicked() {
                 app.show_about_popup = false;
             }
@@ -388,6 +342,7 @@ pub fn show_about_popup(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) 
     }
 }
 
+// Function to show the import local skin popup
 pub fn show_import_popup(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
     if app.show_import_popup {
         let mut show_import_popup = app.show_import_popup;
@@ -423,8 +378,13 @@ pub fn show_import_popup(app: &mut WarThunderCamoInstaller, ctx: &egui::Context)
     }
 }
 
-// Additional helper functions
+// Helper function to update the application state
+pub fn update_app_state(app: &mut WarThunderCamoInstaller) {
+    update_total_camos(app);
+    refresh_available_tags(app);
+}
 
+// Function to update the total number of camouflages
 pub fn update_total_camos(app: &mut WarThunderCamoInstaller) {
     if let Some(db_conn) = &app.db_conn {
         match database::update_total_camos(db_conn) {
@@ -434,7 +394,7 @@ pub fn update_total_camos(app: &mut WarThunderCamoInstaller) {
     }
 }
 
-// Implement refresh_available_tags in the UI update cycle
+// Function to refresh available tags in the application
 pub fn refresh_available_tags(app: &mut WarThunderCamoInstaller) {
     if let Some(db_conn) = &app.db_conn {
         match database::fetch_tags(db_conn, 0) {
@@ -444,7 +404,7 @@ pub fn refresh_available_tags(app: &mut WarThunderCamoInstaller) {
     }
 }
 
-// Update apply_custom_structure to be used when the custom structure is changed
+// Function to apply custom directory structure settings
 pub fn apply_custom_structure(app: &mut WarThunderCamoInstaller) {
     if app.use_custom_structure {
         if let Some(camo) = &app.current_camo {
@@ -463,33 +423,3 @@ pub fn apply_custom_structure(app: &mut WarThunderCamoInstaller) {
         }
     }
 }
-
-// Add a new function to update the application state
-pub fn update_app_state(app: &mut WarThunderCamoInstaller) {
-    update_total_camos(app);
-    refresh_available_tags(app);
-    // Add any other state updates here
-}
-// You can add more helper functions here as needed
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

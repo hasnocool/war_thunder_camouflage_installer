@@ -1,3 +1,5 @@
+// src/ui/components.rs
+
 use eframe::egui;
 use super::app::WarThunderCamoInstaller;
 use super::handlers;
@@ -52,11 +54,15 @@ pub fn search_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     });
 }
 
+// Replace the existing tag_filters function with this:
 pub fn tag_filters(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         ui.label("Filter by tags:");
         if ui.checkbox(&mut app.tag_filtering_enabled, "Enable Tag Filtering").changed() {
-            handlers::toggle_tag_filtering(app);
+            if app.tag_filtering_enabled {
+                app.selected_tags.clear();  // Reset selected tags when enabling filtering
+            }
+            handlers::perform_search(app);
         }
     });
 
