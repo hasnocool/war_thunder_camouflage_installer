@@ -5,7 +5,7 @@ import argparse
 
 # List of directories and files to exclude
 EXCLUDE_PATTERNS = [
-    "target", "cache", "notes", "binaries", ".idea", ".vscode",
+    "target", "cache", "notes", "binaries", ".idea", ".vscode", ".git",
     "Cargo.lock", "clippy_combined_output.txt", "clippy_combined_output.txt_final.txt",
     "clippy_full_files_output.txt", "config.ini", "../wtci_db/war_thunder_camouflages.db",
     "*.db", "build_script_v1.py"

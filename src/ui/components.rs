@@ -55,21 +55,37 @@ pub fn search_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
 pub fn tag_filters(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         ui.label("Filter by tags:");
-        let all_tags: Vec<_> = app.available_tags.iter().chain(app.custom_tags.iter()).collect();
-        for tag in all_tags {
-            let mut is_selected = app.selected_tags.contains(tag);
-            if ui.checkbox(&mut is_selected, tag).clicked() {
-                if is_selected {
-                    app.selected_tags.push(tag.to_string());
-                } else {
-                    app.selected_tags.retain(|t| t != tag);
-                }
-            }
-        }
-        if ui.button("Apply Filter").clicked() {
-            handlers::perform_search(app);
+        if ui.checkbox(&mut app.tag_filtering_enabled, "Enable Tag Filtering").changed() {
+            handlers::toggle_tag_filtering(app);
         }
     });
+
+    if app.tag_filtering_enabled {
+        ui.horizontal(|ui| {
+            let all_tags: Vec<_> = app.available_tags.iter().chain(app.custom_tags.iter()).cloned().collect();
+            let mut tags_changed = false;
+
+            for tag in all_tags {
+                let mut is_selected = app.selected_tags.contains(&tag);
+                if ui.checkbox(&mut is_selected, &tag).changed() {
+                    if is_selected {
+                        app.selected_tags.push(tag.clone());
+                    } else {
+                        app.selected_tags.retain(|t| t != &tag);
+                    }
+                    tags_changed = true;
+                }
+            }
+
+            if tags_changed {
+                handlers::perform_search(app);
+            }
+        });
+    }
+
+    if ui.button("Apply Filter").clicked() {
+        handlers::perform_search(app);
+    }
 }
 
 pub fn camouflage_details(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {

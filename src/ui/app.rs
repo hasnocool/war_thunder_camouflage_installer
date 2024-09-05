@@ -40,6 +40,7 @@ pub struct WarThunderCamoInstaller {
     pub selected_tags: Vec<String>,
     pub custom_tags_input: String,
     pub custom_tags: Vec<String>,
+    pub tag_filtering_enabled: bool, // Add this new field
 }
 
 impl WarThunderCamoInstaller {
@@ -83,6 +84,7 @@ impl WarThunderCamoInstaller {
             selected_tags: Vec::new(),
             custom_tags_input: String::new(),
             custom_tags: Vec::new(),
+            tag_filtering_enabled: true, // Initialize the new field
         };
 
         if let Ok(Some((index, camo))) = installer.fetch_camouflage_by_index(0) {
@@ -93,6 +95,8 @@ impl WarThunderCamoInstaller {
 
         Ok(installer)
     }
+
+
 
     pub fn new_without_db() -> Self {
         let (_image_sender, image_receiver) = std::sync::mpsc::channel();
@@ -123,6 +127,7 @@ impl WarThunderCamoInstaller {
             selected_tags: Vec::new(),
             custom_tags_input: String::new(),
             custom_tags: Vec::new(),
+            tag_filtering_enabled: true, // Initialize the new field
         }
     }
 
@@ -175,11 +180,20 @@ impl WarThunderCamoInstaller {
         self.custom_tags = tags.custom_tags;
         Ok(())
     }
+
+
+    pub fn update(&mut self, ctx: &egui::Context) {
+        handlers::update_app_state(self);
+        handlers::update_image_grid(self, ctx);
+        if self.use_custom_structure {
+            handlers::apply_custom_structure(self);
+        }
+    }
 }
 
 impl eframe::App for WarThunderCamoInstaller {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        handlers::update_image_grid(self, ctx);
+        self.update(ctx);
         layout::build_ui(self, ctx);
 
         if *self.loading_images.lock().unwrap() {

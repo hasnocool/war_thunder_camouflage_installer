@@ -7,11 +7,13 @@ use crate::image_utils;
 use crate::file_operations;
 use crate::path_utils;
 use super::app::WarThunderCamoInstaller;
+use super::handlers; // <-- Add this line
 use image::GenericImageView;
 use reqwest;
 use zip;
 use std::fs::{self, File};
 use std::io::{self, Cursor};
+
 
 pub fn set_wt_skins_directory(app: &mut WarThunderCamoInstaller) {
     if let Some(path) = rfd::FileDialog::new().pick_folder() {
@@ -56,7 +58,15 @@ pub fn select_database_file(app: &mut WarThunderCamoInstaller) {
 
 pub fn perform_search(app: &mut WarThunderCamoInstaller) {
     let query = if app.search_query.is_empty() { None } else { Some(app.search_query.as_str()) };
-    match app.fetch_camouflages(query, &app.selected_tags) {
+
+    // Ensure both branches return `&Vec<String>`
+    let selected_tags = if app.tag_filtering_enabled {
+        &app.selected_tags
+    } else {
+        &Vec::new() // Create a new empty Vec and return a reference to it
+    };
+
+    match app.fetch_camouflages(query, selected_tags) {
         Ok(results) => {
             app.search_results = results;
             app.search_mode = true;
@@ -78,6 +88,48 @@ pub fn perform_search(app: &mut WarThunderCamoInstaller) {
         }
     }
 }
+
+
+pub fn toggle_tag_filtering(app: &mut WarThunderCamoInstaller) {
+    app.tag_filtering_enabled = !app.tag_filtering_enabled;
+    perform_search(app);
+}
+
+pub fn tag_filters(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
+    ui.horizontal(|ui| {
+        ui.label("Filter by tags:");
+        if ui.checkbox(&mut app.tag_filtering_enabled, "Enable Tag Filtering").changed() {
+            super::handlers::toggle_tag_filtering(app); // Update the prefix to super::handlers
+        }
+    });
+
+    if app.tag_filtering_enabled {
+        ui.horizontal(|ui| {
+            let all_tags: Vec<_> = app.available_tags.iter().chain(app.custom_tags.iter()).cloned().collect();
+            let mut tags_changed = false;
+
+            for tag in all_tags {
+                let is_selected = app.selected_tags.contains(&tag);
+                let mut checkbox_state = is_selected;
+
+                if ui.checkbox(&mut checkbox_state, &tag).changed() {
+                    super::handlers::toggle_tag(app, &tag); // Update the prefix to super::handlers
+                    tags_changed = true;
+                }
+            }
+
+            if tags_changed {
+                super::handlers::perform_search(app); // Update the prefix to super::handlers
+            }
+        });
+    }
+
+    if ui.button("Apply Filter").clicked() {
+        super::handlers::perform_search(app); // Update the prefix to super::handlers
+    }
+}
+
+
 
 // Update the toggle_tag function to be used in the UI
 pub fn toggle_tag(app: &mut WarThunderCamoInstaller, tag: &str) {
@@ -397,7 +449,7 @@ pub fn apply_custom_structure(app: &mut WarThunderCamoInstaller) {
     if app.use_custom_structure {
         if let Some(camo) = &app.current_camo {
             if let Some(skins_dir) = &app.wt_skins_dir {
-                let custom_path = path_utils::generate_custom_path(
+                let custom_path = crate::path_utils::generate_custom_path(
                     skins_dir,
                     &app.custom_structure,
                     camo
@@ -409,8 +461,6 @@ pub fn apply_custom_structure(app: &mut WarThunderCamoInstaller) {
         } else {
             app.error_message = Some("No camouflage selected.".to_string());
         }
-    } else {
-        app.error_message = Some("Custom structure is not enabled.".to_string());
     }
 }
 
@@ -420,5 +470,26 @@ pub fn update_app_state(app: &mut WarThunderCamoInstaller) {
     refresh_available_tags(app);
     // Add any other state updates here
 }
-
 // You can add more helper functions here as needed
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

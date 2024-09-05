@@ -6,7 +6,6 @@ mod file_operations;
 mod path_utils;
 mod tags;
 
-use std::path::Path;
 use std::env;
 use eframe::{run_native, NativeOptions};
 
