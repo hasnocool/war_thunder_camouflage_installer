@@ -16,7 +16,7 @@ use serde_json;
 type ImageReceiver = Arc<Mutex<Receiver<(String, Vec<u8>)>>>;
 
 pub struct WarThunderCamoInstaller {
-    pub db_conn: Connection,
+    pub db_conn: Option<Connection>,
     pub current_camo: Option<Camouflage>,
     pub _image_receiver: ImageReceiver,
     pub _install_receiver: Receiver<Result<(), String>>,
@@ -59,7 +59,7 @@ impl WarThunderCamoInstaller {
         let available_tags = database::fetch_tags(&db_conn, 0)?;
 
         let mut installer = Self {
-            db_conn,
+            db_conn: Some(db_conn),
             current_camo: None,
             _image_receiver: Arc::new(Mutex::new(image_receiver)),
             _install_receiver: install_receiver,
@@ -94,8 +94,44 @@ impl WarThunderCamoInstaller {
         Ok(installer)
     }
 
+    pub fn new_without_db() -> Self {
+        let (_image_sender, image_receiver) = std::sync::mpsc::channel();
+        let (_install_sender, install_receiver) = std::sync::mpsc::channel();
+
+        Self {
+            db_conn: None,
+            current_camo: None,
+            _image_receiver: Arc::new(Mutex::new(image_receiver)),
+            _install_receiver: install_receiver,
+            images: Arc::new(Mutex::new(HashMap::new())),
+            error_message: Some("No database loaded. Some features may be limited.".to_string()),
+            search_query: String::new(),
+            current_index: 0,
+            total_camos: 0,
+            search_results: Vec::new(),
+            search_mode: false,
+            loading_images: Arc::new(Mutex::new(false)),
+            wt_skins_dir: None,
+            custom_structure: "%USERSKINS/%NICKNAME/%SKIN_NAME - %VEHICLE".to_string(),
+            use_custom_structure: true,
+            show_import_popup: false,
+            show_about_popup: false,
+            selected_import_dir: None,
+            show_custom_structure_popup: false,
+            image_load_queue: Arc::new(Mutex::new(VecDeque::new())),
+            available_tags: Vec::new(),
+            selected_tags: Vec::new(),
+            custom_tags_input: String::new(),
+            custom_tags: Vec::new(),
+        }
+    }
+
     pub fn fetch_camouflage_by_index(&self, index: usize) -> Result<Option<(usize, Camouflage)>, InstallerError> {
-        database::fetch_camouflage_by_index(&self.db_conn, index)
+        if let Some(db_conn) = &self.db_conn {
+            database::fetch_camouflage_by_index(db_conn, index)
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn set_current_camo(&mut self, index: usize, camo: Camouflage) {
@@ -115,7 +151,11 @@ impl WarThunderCamoInstaller {
     }
 
     pub fn fetch_camouflages(&self, query: Option<&str>, selected_tags: &[String]) -> Result<Vec<Camouflage>, InstallerError> {
-        database::fetch_camouflages(&self.db_conn, query, selected_tags)
+        if let Some(db_conn) = &self.db_conn {
+            database::fetch_camouflages(db_conn, query, selected_tags)
+        } else {
+            Ok(Vec::new())
+        }
     }
 
     pub fn export_tags(&self, path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -135,8 +175,6 @@ impl WarThunderCamoInstaller {
         self.custom_tags = tags.custom_tags;
         Ok(())
     }
-
-    
 }
 
 impl eframe::App for WarThunderCamoInstaller {

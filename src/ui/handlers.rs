@@ -1,12 +1,17 @@
 use eframe::egui;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use std::sync::mpsc;
 use rayon::prelude::*;
 use crate::database;
 use crate::image_utils;
 use crate::file_operations;
+use crate::path_utils;
 use super::app::WarThunderCamoInstaller;
 use image::GenericImageView;
+use reqwest;
+use zip;
+use std::fs::{self, File};
+use std::io::{self, Cursor};
 
 pub fn set_wt_skins_directory(app: &mut WarThunderCamoInstaller) {
     if let Some(path) = rfd::FileDialog::new().pick_folder() {
@@ -26,10 +31,10 @@ pub fn select_database_file(app: &mut WarThunderCamoInstaller) {
                     return;
                 }
 
-                app.db_conn = new_conn;
+                app.db_conn = Some(new_conn);
                 app.error_message = Some(format!("Database set to: {}", path.display()));
 
-                app.total_camos = database::update_total_camos(&app.db_conn).unwrap_or(0);
+                app.total_camos = database::update_total_camos(app.db_conn.as_ref().unwrap()).unwrap_or(0);
                 app.current_index = 0;
                 app.search_results.clear();
                 app.search_mode = false;
@@ -74,12 +79,14 @@ pub fn perform_search(app: &mut WarThunderCamoInstaller) {
     }
 }
 
-pub fn toggle_tag(app: &mut WarThunderCamoInstaller, tag: &str, is_selected: bool) {
-    if is_selected {
-        app.selected_tags.push(tag.to_string());
-    } else {
+// Update the toggle_tag function to be used in the UI
+pub fn toggle_tag(app: &mut WarThunderCamoInstaller, tag: &str) {
+    if app.selected_tags.contains(&tag.to_string()) {
         app.selected_tags.retain(|t| t != tag);
+    } else {
+        app.selected_tags.push(tag.to_string());
     }
+    perform_search(app);
 }
 
 pub fn add_custom_tags(app: &mut WarThunderCamoInstaller) {
@@ -103,19 +110,68 @@ pub fn install_skin(app: &mut WarThunderCamoInstaller, zip_url: &str) {
         };
 
         let out_dir = if let Some(custom) = custom_structure {
-            crate::path_utils::generate_custom_path(skins_directory.as_path(), custom, app.current_camo.as_ref().unwrap())
+            path_utils::generate_custom_path(skins_directory.as_path(), custom, app.current_camo.as_ref().unwrap())
         } else {
             skins_directory.join(&app.current_camo.as_ref().unwrap().vehicle_name)
         };
 
         println!("Downloading skin from {} to {:?}", zip_url, out_dir);
 
-        // Here you would implement the actual download and installation logic
-        // For now, we'll just set a success message
-        app.error_message = Some("Skin installed successfully".to_string());
+        // Spawn a new thread for downloading and installing the skin
+        let out_dir_clone = out_dir.clone();
+        let zip_url = zip_url.to_string();
+        std::thread::spawn(move || {
+            match download_and_install_skin(&zip_url, &out_dir_clone) {
+                Ok(_) => println!("Skin installed successfully"),
+                Err(e) => eprintln!("Failed to install skin: {}", e),
+            }
+        });
+
+        app.error_message = Some("Skin installation started. Please wait...".to_string());
     } else {
         app.error_message = Some("War Thunder skins directory not selected".to_string());
     }
+}
+
+fn download_and_install_skin(zip_url: &str, out_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    // Download the ZIP file
+    let response = reqwest::blocking::get(zip_url)?;
+    let content = response.bytes()?;
+
+    // Create a cursor to read the ZIP content
+    let mut zip = zip::ZipArchive::new(Cursor::new(content))?;
+
+    // Create the output directory if it doesn't exist
+    fs::create_dir_all(out_dir)?;
+
+    // Extract the ZIP contents
+    for i in 0..zip.len() {
+        let mut file = zip.by_index(i)?;
+        let outpath = out_dir.join(file.mangled_name());
+
+        if file.name().ends_with('/') {
+            fs::create_dir_all(&outpath)?;
+        } else {
+            if let Some(p) = outpath.parent() {
+                if !p.exists() {
+                    fs::create_dir_all(p)?;
+                }
+            }
+            let mut outfile = File::create(&outpath)?;
+            io::copy(&mut file, &mut outfile)?;
+        }
+
+        // Get and Set permissions
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Some(mode) = file.unix_mode() {
+                fs::set_permissions(&outpath, fs::Permissions::from_mode(mode))?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub fn show_next_camo(app: &mut WarThunderCamoInstaller) {
@@ -205,11 +261,12 @@ pub fn update_image_grid(app: &WarThunderCamoInstaller, ctx: &egui::Context) {
     });
 }
 
+// Update load_current_camo_images to use a string slice
 pub fn load_current_camo_images(app: &WarThunderCamoInstaller) {
     if let Some(camo) = &app.current_camo {
         let mut queue = app.image_load_queue.lock().unwrap();
         for url in &camo.image_urls {
-            if !app.images.lock().unwrap().contains_key(url) {
+            if !app.images.lock().unwrap().contains_key(url as &str) {
                 queue.push_back(url.clone());
             }
         }
@@ -313,3 +370,55 @@ pub fn show_import_popup(app: &mut WarThunderCamoInstaller, ctx: &egui::Context)
         app.show_import_popup = show_import_popup;
     }
 }
+
+// Additional helper functions
+
+pub fn update_total_camos(app: &mut WarThunderCamoInstaller) {
+    if let Some(db_conn) = &app.db_conn {
+        match database::update_total_camos(db_conn) {
+            Ok(count) => app.total_camos = count,
+            Err(e) => app.error_message = Some(format!("Failed to update total camos: {}", e)),
+        }
+    }
+}
+
+// Implement refresh_available_tags in the UI update cycle
+pub fn refresh_available_tags(app: &mut WarThunderCamoInstaller) {
+    if let Some(db_conn) = &app.db_conn {
+        match database::fetch_tags(db_conn, 0) {
+            Ok(tags) => app.available_tags = tags,
+            Err(e) => app.error_message = Some(format!("Failed to refresh available tags: {}", e)),
+        }
+    }
+}
+
+// Update apply_custom_structure to be used when the custom structure is changed
+pub fn apply_custom_structure(app: &mut WarThunderCamoInstaller) {
+    if app.use_custom_structure {
+        if let Some(camo) = &app.current_camo {
+            if let Some(skins_dir) = &app.wt_skins_dir {
+                let custom_path = path_utils::generate_custom_path(
+                    skins_dir,
+                    &app.custom_structure,
+                    camo
+                );
+                app.error_message = Some(format!("Custom path: {}", custom_path.display()));
+            } else {
+                app.error_message = Some("War Thunder skins directory not set.".to_string());
+            }
+        } else {
+            app.error_message = Some("No camouflage selected.".to_string());
+        }
+    } else {
+        app.error_message = Some("Custom structure is not enabled.".to_string());
+    }
+}
+
+// Add a new function to update the application state
+pub fn update_app_state(app: &mut WarThunderCamoInstaller) {
+    update_total_camos(app);
+    refresh_available_tags(app);
+    // Add any other state updates here
+}
+
+// You can add more helper functions here as needed

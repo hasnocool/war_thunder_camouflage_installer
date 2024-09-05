@@ -1,8 +1,14 @@
-use eframe::{run_native, NativeOptions};
+mod ui;
+mod data;
+mod database;
+mod image_utils;
+mod file_operations;
+mod path_utils;
+mod tags;
+
 use std::path::Path;
 use std::env;
-
-mod ui; // Add this line to import the `ui` module or crate
+use eframe::{run_native, NativeOptions};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let options = NativeOptions {
@@ -29,7 +35,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("Failed to initialize the application with the database: {:?}", e);
             eprintln!("Continuing without a database. Some features may be limited.");
             
-            // Create an installer without a database
             let installer = ui::WarThunderCamoInstaller::new_without_db();
             
             Ok(run_native(
