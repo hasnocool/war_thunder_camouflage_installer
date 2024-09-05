@@ -167,9 +167,6 @@ pub fn fetch_camouflages(db_conn: &Connection, query: Option<&str>, selected_tag
     Ok(camo_iter.collect::<Result<Vec<_>, rusqlite::Error>>()?)
 }
 
-pub fn fetch_all_camouflages(db_conn: &Connection) -> Result<Vec<Camouflage>, InstallerError> {
-    fetch_camouflages(db_conn, None, &[])
-}
 
 #[allow(dead_code)]
 pub fn add_tag(db_conn: &Connection, camouflage_id: usize, tag: &str) -> Result<(), InstallerError> {
