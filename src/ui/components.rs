@@ -36,6 +36,18 @@ pub fn menu_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
                 ui.close_menu();
             }
         });
+
+        ui.menu_button("View", |ui| {
+            if ui.button("Detailed View").clicked() {
+                app.show_detailed_view = true; // New field in app state to toggle detailed view
+                ui.close_menu();
+            }
+            if ui.button("Main View").clicked() {
+                app.show_detailed_view = false;
+                ui.close_menu();
+            }
+        });
+
         ui.menu_button("About", |ui| {
             if ui.button("About").clicked() {
                 app.show_about_popup = true;
@@ -44,6 +56,7 @@ pub fn menu_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
         });
     });
 }
+
 
 pub fn search_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
@@ -104,38 +117,12 @@ pub fn camouflage_details(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) 
         ui.label(format!("Tags: {}", camo.tags.join(", ")));
         ui.label(format!("Downloads: {}", camo.num_downloads));
         ui.label(format!("Likes: {}", camo.num_likes));
-        show_image_grid(app, ui);
     } else {
         ui.label("No camouflage selected");
-        if let Some(error) = &app.error_message {
-            ui.label(error);
-        }
     }
-}
-
-pub fn show_image_grid(app: &WarThunderCamoInstaller, ui: &mut egui::Ui) {
-    let images = app.images.lock().unwrap();
-    if images.is_empty() {
-        ui.label("No images to display.");
-        return;
+    if let Some(error) = &app.error_message {
+        ui.label(error);
     }
-
-    let available_width = ui.available_width();
-    let image_width = 150.0;
-    let num_columns = (available_width / image_width).floor() as usize;
-
-    egui::Grid::new("image_grid")
-        .num_columns(num_columns)
-        .spacing([10.0, 10.0])
-        .striped(true)
-        .show(ui, |ui| {
-            for (_, texture_handle) in images.iter() {
-                let size = texture_handle.size_vec2();
-                let aspect_ratio = size.x / size.y;
-                let scaled_height = image_width / aspect_ratio;
-                ui.image(texture_handle.id(), [image_width, scaled_height]);
-            }
-        });
 }
 
 pub fn pagination(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {

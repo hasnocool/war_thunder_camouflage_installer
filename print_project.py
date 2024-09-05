@@ -8,7 +8,11 @@ EXCLUDE_PATTERNS = [
     "target", "cache", "notes", "binaries", ".idea", ".vscode", ".git",
     "Cargo.lock", "clippy_combined_output.txt", "clippy_combined_output.txt_final.txt",
     "clippy_full_files_output.txt", "config.ini", "../wtci_db/war_thunder_camouflages.db",
-    "*.db", "build_script_v1.py"
+    "*.db", "build_script_v1.py",
+    # New patterns added
+    "build_script.py", "Cargo.toml", "CHANGE.log", "check.py", "print_project.py",
+    "README.md", "TAGS.json", "TODO.md", "TREE.md",
+    "avatar.jpg", "banner.png", "logo.png", "preview.png"
 ]
 
 EXCLUDE_EXTENSIONS = [".rs.bk", ".db"]
@@ -32,7 +36,7 @@ def list_files_recursively(base_dir):
         for file in files:
             # Exclude specified files
             file_path = os.path.join(root, file)
-            if not should_exclude(file_path):
+            if not should_exclude(file):
                 file_list.append(file_path)
     return file_list
 
@@ -44,6 +48,14 @@ def print_file_contents(file_path):
             return divider + file.read()
     except Exception as e:
         return divider + f"Error reading file: {e}"
+
+def capture_error_output(command):
+    """Capture both stdout and stderr from a command execution."""
+    try:
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True)
+        return result.stdout, result.stderr
+    except Exception as e:
+        return "", f"Error executing command '{command}': {e}"
 
 def select_files(files):
     """Allow the user to select files from a list."""
@@ -91,25 +103,31 @@ def parse_arguments():
     )
     return parser.parse_args()
 
-def run_cargo_command(command):
-    """Run a cargo command and capture its stderr output."""
-    result = subprocess.run(command, stderr=subprocess.PIPE, text=True, shell=True)
-    return result.stderr
-
-def format_llm_prompt(user_query):
+def format_llm_prompt(user_query, file_context, error_output):
     """Format the LLM prompt in a structured format."""
     prompt = (
         "SYSTEM: YOU ARE A RUST PROGRAMMING EXPERT.\n"
         "USER: HERE IS THE CONTEXT OF MY RUST PROJECT. PLEASE ANALYZE THE CODE AND ERROR OUTPUT TO PROVIDE A DETAILED RESPONSE.\n\n"
-        "FILES CONTENT:\n"
-        "...\n"  # Placeholder for files content
-        "ERROR OUTPUT:\n"
-        "...\n"  # Placeholder for error output
+        f"FILES CONTENT:\n{file_context}\n"
+        f"ERROR OUTPUT:\n{error_output}\n"
         "QUERY:\n"
         f"{user_query.upper()}\n"
         "AI: PLEASE PROVIDE A DETAILED AND ACTIONABLE RESPONSE TO THE QUERY ABOVE, EXPLAINING THE CONTEXT, ROOT CAUSE, AND STEPS NEEDED TO RESOLVE OR IMPROVE IT."
     )
     return prompt
+
+def ollama_query(query):
+    """Send a query to the Ollama model and return the response."""
+    try:
+        result = subprocess.run(
+            ["ollama", "query", query],
+            capture_output=True,
+            text=True,
+            shell=True
+        )
+        return result.stdout
+    except Exception as e:
+        return f"Error running Ollama query: {e}"
 
 def main():
     # Parse command-line arguments
@@ -136,20 +154,31 @@ def main():
     # Collect the output in a string
     output = ""
 
-    # Append the contents of each selected file to the output
+    # Collect file context for LLM
+    file_context = ""
     for file in selected_files:
-        output += print_file_contents(file)
+        file_content = print_file_contents(file)
+        output += file_content
+        file_context += file_content
 
     # Include cargo build or clippy errors if specified
+    error_output = ""
     if args.build:
+        stdout, stderr = capture_error_output("cargo build")
+        output += "\n" + "=" * 40 + "\nCargo Build Output\n" + "=" * 40 + "\n"
+        output += stdout
+        error_output = stderr
         output += "\n" + "=" * 40 + "\nCargo Build Errors\n" + "=" * 40 + "\n"
-        output += run_cargo_command("cargo build")
+        output += stderr
 
     # Include the user's query for ChatGPT if specified
     if args.query:
-        formatted_prompt = format_llm_prompt(args.query)
+        formatted_prompt = format_llm_prompt(args.query, file_context, error_output)
         output += "\n" + "=" * 40 + "\nQuery for ChatGPT\n" + "=" * 40 + "\n"
         output += formatted_prompt
+        # Include Ollama response if specified
+        output += "\n" + "=" * 40 + "\nOllama Response\n" + "=" * 40 + "\n"
+        output += ollama_query(args.query)
 
     # Print and copy the output to the clipboard
     print(output)

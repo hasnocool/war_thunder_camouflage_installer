@@ -40,7 +40,9 @@ pub struct WarThunderCamoInstaller {
     pub selected_tags: Vec<String>,
     pub custom_tags_input: String,
     pub custom_tags: Vec<String>,
-    pub tag_filtering_enabled: bool, // Add this new field
+    pub tag_filtering_enabled: bool,
+    pub show_detailed_view: bool, // Add this field
+    pub current_page: usize, // Add this line for pagination
 }
 
 impl WarThunderCamoInstaller {
@@ -84,7 +86,9 @@ impl WarThunderCamoInstaller {
             selected_tags: Vec::new(),
             custom_tags_input: String::new(),
             custom_tags: Vec::new(),
-            tag_filtering_enabled: true, // Initialize the new field
+            tag_filtering_enabled: true,
+            show_detailed_view: false, // Initialize to false for default main view
+            current_page: 0, // Initialize the current_page field to 0
         };
 
         if let Ok(Some((index, camo))) = installer.fetch_camouflage_by_index(0) {
@@ -95,8 +99,6 @@ impl WarThunderCamoInstaller {
 
         Ok(installer)
     }
-
-
 
     pub fn new_without_db() -> Self {
         let (_image_sender, image_receiver) = std::sync::mpsc::channel();
@@ -127,7 +129,9 @@ impl WarThunderCamoInstaller {
             selected_tags: Vec::new(),
             custom_tags_input: String::new(),
             custom_tags: Vec::new(),
-            tag_filtering_enabled: true, // Initialize the new field
+            tag_filtering_enabled: true,
+            show_detailed_view: false, // Initialize to false for default main view
+            current_page: 0, // Initialize the current_page field to 0
         }
     }
 
