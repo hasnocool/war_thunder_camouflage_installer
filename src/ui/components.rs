@@ -3,16 +3,24 @@
 use eframe::egui;
 use super::app::WarThunderCamoInstaller;
 use super::handlers;
+use super::database_handlers;
+use super::navigation_handlers;
+use super::file_handlers;
+use super::image_handlers;
+use crate::ui::handlers::set_wt_skins_directory;
+use crate::ui::handlers::change_database_file;
+
+
 
 pub fn menu_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     egui::menu::bar(ui, |ui| {
         ui.menu_button("File", |ui| {
-            if ui.button("Set War Thunder Skins Directory").clicked() {
-                handlers::set_wt_skins_directory(app);
+            if ui.button("Change War Thunder Skins Directory").clicked() {
+                set_wt_skins_directory(app);  // Call the method here
                 ui.close_menu();
             }
-            if ui.button("Set Database File").clicked() {
-                handlers::select_database_file(app);
+            if ui.button("Change Database File").clicked() {
+                change_database_file(app);
                 ui.close_menu();
             }
             if ui.button("Custom Structure Settings").clicked() {
@@ -24,15 +32,15 @@ pub fn menu_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
                 ui.close_menu();
             }
             if ui.button("Export Tags").clicked() {
-                handlers::export_tags(app);
+                database_handlers::export_tags(app);
                 ui.close_menu();
             }
             if ui.button("Import Tags").clicked() {
-                handlers::import_tags(app);
+                database_handlers::import_tags(app);
                 ui.close_menu();
             }
             if ui.button("Clear Cache").clicked() {
-                handlers::clear_cache(app);
+                image_handlers::clear_cache(app);
                 ui.close_menu();
             }
         });
@@ -128,11 +136,11 @@ pub fn camouflage_details(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) 
 pub fn pagination(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         if ui.button("Previous").clicked() {
-            handlers::show_previous_camo(app);
+            navigation_handlers::show_previous_camo(app);
         }
         ui.label(format!("{}/{}", app.current_index + 1, if app.search_mode { app.search_results.len() } else { app.total_camos }));
         if ui.button("Next").clicked() {
-            handlers::show_next_camo(app);
+            navigation_handlers::show_next_camo(app);
         }
     });
 }
@@ -141,7 +149,7 @@ pub fn install_button(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     if let Some(camo) = &app.current_camo {
         let zip_file_url = camo.zip_file_url.clone();
         if ui.button("Install").clicked() {
-            handlers::install_skin(app, &zip_file_url);
+            file_handlers::install_skin(app, &zip_file_url);
         }
     }
 }
@@ -154,4 +162,43 @@ pub fn custom_tags_input(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
             handlers::add_custom_tags(app);
         }
     });
+}
+
+fn show_image_grid_for_detailed_view(ui: &mut egui::Ui, app: &WarThunderCamoInstaller) {
+    if let Some(current_camo) = &app.current_camo {
+        let images = app.images.lock().unwrap();
+        if images.is_empty() {
+            ui.label("No images to display.");
+            return;
+        }
+
+        // Display the first image as the avatar in original size
+        if let Some(avatar_url) = current_camo.image_urls.get(0) {
+            if let Some(texture_handle) = images.get(avatar_url) {
+                let size = texture_handle.size_vec2();
+                ui.image(texture_handle.id(), size);
+            }
+        }
+
+        let available_width = ui.available_width();
+        let image_width = 150.0;
+        let num_columns = (available_width / image_width).floor() as usize;
+
+        egui::Grid::new("image_grid_for_detailed_view")
+            .num_columns(num_columns)
+            .spacing([10.0, 10.0])
+            .striped(true)
+            .show(ui, |ui| {
+                for url in &current_camo.image_urls[1..] { // Skip the avatar
+                    if let Some(texture_handle) = images.get(url) {
+                        let size = texture_handle.size_vec2();
+                        let aspect_ratio = size.x / size.y;
+                        let scaled_height = image_width / aspect_ratio;
+                        ui.image(texture_handle.id(), [image_width, scaled_height]);
+                    }
+                }
+            });
+    } else {
+        ui.label("No camouflage selected");
+    }
 }

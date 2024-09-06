@@ -3,7 +3,7 @@
 use eframe::egui;
 use super::app::WarThunderCamoInstaller;
 use super::components;
-use super::handlers;
+use super::popup_handlers;
 
 pub fn build_ui(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
     top_panel(app, ctx);
@@ -19,7 +19,10 @@ pub fn build_ui(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
 }
 
 fn detailed_view(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
-    let items_per_page = 10;
+    let available_height = ctx.available_rect().height();
+    let line_height = 30.0; // Approximate height of a line in the sidebar
+    let items_per_page = (available_height / line_height).floor() as usize;
+
     let start_index = app.current_page * items_per_page;
     let end_index = (start_index + items_per_page).min(app.search_results.len());
 
@@ -60,6 +63,18 @@ fn detailed_view(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
             ui.add_space(20.0);
             ui.heading("Images");
             show_image_grid_for_detailed_view(ui, app);
+
+            // Fix: Borrow immutably first, then borrow mutably later.
+            ui.horizontal(|ui| {
+                if let Some(current_camo) = &app.current_camo {
+                    let zip_url = current_camo.zip_file_url.clone();  // Clone the URL
+                    if ui.button("Install Skin").clicked() {
+                        app.start_skin_installation(&zip_url);  // Mutate app here
+                    }
+                } else {
+                    ui.label("No camouflage selected.");
+                }
+            });
         });
     });
 }
@@ -83,6 +98,18 @@ fn central_panel(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
             ui.add_space(20.0);
             ui.heading("Images");
             show_image_grid_for_main_view(ui, app);
+
+            // Fix: Borrow immutably first, then borrow mutably later.
+            ui.horizontal(|ui| {
+                if let Some(current_camo) = &app.current_camo {
+                    let zip_url = current_camo.zip_file_url.clone();  // Clone the URL
+                    if ui.button("Install Skin").clicked() {
+                        app.start_skin_installation(&zip_url);  // Mutate app here
+                    }
+                } else {
+                    ui.label("No camouflage selected.");
+                }
+            });
         });
     });
 }
@@ -96,6 +123,14 @@ fn show_image_grid_for_detailed_view(ui: &mut egui::Ui, app: &WarThunderCamoInst
             return;
         }
 
+        // Display the first image as the avatar in original size
+        if let Some(avatar_url) = current_camo.image_urls.get(0) {
+            if let Some(texture_handle) = images.get(avatar_url) {
+                let size = texture_handle.size_vec2();
+                ui.image(texture_handle.id(), size);
+            }
+        }
+
         let available_width = ui.available_width();
         let image_width = 150.0;
         let num_columns = (available_width / image_width).floor() as usize;
@@ -105,7 +140,7 @@ fn show_image_grid_for_detailed_view(ui: &mut egui::Ui, app: &WarThunderCamoInst
             .spacing([10.0, 10.0])
             .striped(true)
             .show(ui, |ui| {
-                for url in &current_camo.image_urls {
+                for url in &current_camo.image_urls[1..] { // Skip the avatar
                     if let Some(texture_handle) = images.get(url) {
                         let size = texture_handle.size_vec2();
                         let aspect_ratio = size.x / size.y;
@@ -154,7 +189,7 @@ fn bottom_panel(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
 }
 
 fn show_popups(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
-    handlers::show_custom_structure_popup(app, ctx);
-    handlers::show_about_popup(app, ctx);
-    handlers::show_import_popup(app, ctx);
+    popup_handlers::show_custom_structure_popup(app, ctx);
+    popup_handlers::show_about_popup(app, ctx);
+    popup_handlers::show_import_popup(app, ctx);
 }

@@ -8,7 +8,7 @@ pub struct Camouflage {
     pub file_size: String,
     pub post_date: String,
     pub hashtags: Vec<String>,
-    pub tags: Vec<String>,  // New field for storing tags
+    pub tags: Vec<String>,  // Storing tags
     pub num_downloads: usize,
     pub num_likes: usize,
     pub zip_file_url: String,
@@ -39,7 +39,7 @@ impl From<InstallerError> for rusqlite::Error {
         match error {
             InstallerError::Sqlite(e) => e,
             _ => rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(1), // Using a generic error code
+                rusqlite::ffi::Error::new(1),
                 Some(error.to_string())
             ),
         }

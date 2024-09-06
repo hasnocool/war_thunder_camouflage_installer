@@ -15,16 +15,14 @@ pub fn initialize_database(db_conn: &Connection) -> Result<(), rusqlite::Error> 
             num_likes INTEGER,
             post_date TEXT,
             nickname TEXT
-        )",
-        [],
+        )", [],
     )?;
 
     db_conn.execute(
         "CREATE TABLE IF NOT EXISTS tags (
             id INTEGER PRIMARY KEY,
             name TEXT UNIQUE NOT NULL
-        )",
-        [],
+        )", [],
     )?;
 
     db_conn.execute(
@@ -34,8 +32,7 @@ pub fn initialize_database(db_conn: &Connection) -> Result<(), rusqlite::Error> 
             PRIMARY KEY (camouflage_id, tag_id),
             FOREIGN KEY (camouflage_id) REFERENCES camouflages(id),
             FOREIGN KEY (tag_id) REFERENCES tags(id)
-        )",
-        [],
+        )", [],
     )?;
 
     Ok(())
@@ -53,15 +50,13 @@ pub fn update_total_camos(db_conn: &Connection) -> Result<usize, InstallerError>
 pub fn fetch_tags(db_conn: &Connection, camouflage_id: usize) -> Result<Vec<String>, rusqlite::Error> {
     let mut stmt = db_conn.prepare(
         "SELECT t.name FROM tags t
-        JOIN camouflage_tags ct ON t.id = ct.tag_id
-        WHERE ct.camouflage_id = ?1"
-    ).map_err(InstallerError::from)?; // Convert rusqlite::Error to InstallerError
-
-    let tags = stmt.query_map(params![camouflage_id as i64], |row| row.get(0))
-        .map_err(InstallerError::from)? // Convert rusqlite::Error to InstallerError
-        .collect::<Result<Vec<String>, rusqlite::Error>>()
-        .map_err(InstallerError::from)?; // Convert rusqlite::Error to InstallerError
-
+         JOIN camouflage_tags ct ON t.id = ct.tag_id
+         WHERE ct.camouflage_id = ?1"
+    )?;
+    
+    let tags = stmt.query_map(params![camouflage_id as i64], |row| row.get(0))?
+        .collect::<Result<Vec<String>, rusqlite::Error>>()?;
+    
     Ok(tags)
 }
 

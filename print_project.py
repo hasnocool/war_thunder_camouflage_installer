@@ -19,9 +19,15 @@ EXCLUDE_EXTENSIONS = [".rs.bk", ".db"]
 
 def should_exclude(file_path):
     """Check if a file or directory should be excluded based on the given patterns."""
+    base_name = os.path.basename(file_path)
+    # Ignore hidden files and directories (starting with a dot)
+    if base_name.startswith('.'):
+        return True
+    # Check for patterns in the blacklist
     for pattern in EXCLUDE_PATTERNS:
         if pattern in file_path:
             return True
+    # Check for excluded extensions
     for ext in EXCLUDE_EXTENSIONS:
         if file_path.endswith(ext):
             return True
@@ -31,14 +37,30 @@ def list_files_recursively(base_dir):
     """Recursively list all files in the base directory, excluding specified patterns."""
     file_list = []
     for root, dirs, files in os.walk(base_dir):
-        # Exclude specified directories
-        dirs[:] = [d for d in dirs if not should_exclude(d)]
+        # Exclude specified directories and hidden directories
+        dirs[:] = [d for d in dirs if not should_exclude(os.path.join(root, d))]
         for file in files:
-            # Exclude specified files
+            # Exclude specified files and hidden files
             file_path = os.path.join(root, file)
-            if not should_exclude(file):
+            if not should_exclude(file_path):
                 file_list.append(file_path)
     return file_list
+
+def generate_file_tree(base_dir):
+    """Generate a directory and file tree structure."""
+    tree = ""
+    for root, dirs, files in os.walk(base_dir):
+        # Exclude specified directories and hidden directories
+        dirs[:] = [d for d in dirs if not should_exclude(os.path.join(root, d))]
+        level = root.replace(base_dir, '').count(os.sep)
+        indent = ' ' * 4 * level
+        tree += f"{indent}{os.path.basename(root)}/\n"
+        subindent = ' ' * 4 * (level + 1)
+        for f in files:
+            file_path = os.path.join(root, f)
+            if not should_exclude(file_path):
+                tree += f"{subindent}{f}\n"
+    return tree
 
 def print_file_contents(file_path):
     """Return the contents of a file with a divider."""
@@ -103,11 +125,12 @@ def parse_arguments():
     )
     return parser.parse_args()
 
-def format_llm_prompt(user_query, file_context, error_output):
+def format_llm_prompt(user_query, file_context, error_output, file_tree):
     """Format the LLM prompt in a structured format."""
     prompt = (
         "SYSTEM: YOU ARE A RUST PROGRAMMING EXPERT.\n"
         "USER: HERE IS THE CONTEXT OF MY RUST PROJECT. PLEASE ANALYZE THE CODE AND ERROR OUTPUT TO PROVIDE A DETAILED RESPONSE.\n\n"
+        f"FILE TREE STRUCTURE:\n{file_tree}\n"
         f"FILES CONTENT:\n{file_context}\n"
         f"ERROR OUTPUT:\n{error_output}\n"
         "QUERY:\n"
@@ -135,6 +158,9 @@ def main():
 
     # Define the base directory (current working directory)
     base_dir = os.getcwd()
+
+    # Generate the file tree
+    file_tree = generate_file_tree(base_dir)
 
     # Get the list of files in the base directory, recursively excluding specified patterns
     all_files = list_files_recursively(base_dir)
@@ -173,7 +199,7 @@ def main():
 
     # Include the user's query for ChatGPT if specified
     if args.query:
-        formatted_prompt = format_llm_prompt(args.query, file_context, error_output)
+        formatted_prompt = format_llm_prompt(args.query, file_context, error_output, file_tree)
         output += "\n" + "=" * 40 + "\nQuery for ChatGPT\n" + "=" * 40 + "\n"
         output += formatted_prompt
         # Include Ollama response if specified
