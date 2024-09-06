@@ -17,6 +17,7 @@ CONFIG_FILE = "config.ini"
 OLLAMA_MODEL = "llama3"
 OLLAMA_API_URL = "http://192.168.1.26:11434"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FILE_PATH = os.path.join(os.path.dirname(SCRIPT_DIR), "wtci_db", "war_thunder_camouflages.db")
 MAX_FILE_SIZE = 200 * 1024 * 1024  # 200MB in bytes
 
 # Update these variables with your correct repository information
@@ -26,23 +27,6 @@ GITHUB_REPO_NAME = "war_thunder_camouflage_installer"
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-def find_db_file():
-    """Search for the database file in '..\\wtci_db' and current directory. Prompt if not found."""
-    potential_paths = [os.path.join("..", "wtci_db", "war_thunder_camouflages.db"), "war_thunder_camouflages.db"]
-    
-    for path in potential_paths:
-        if os.path.exists(path):
-            print(f"Database found at: {path}")
-            return path
-
-    # If not found, prompt user for the path
-    user_input_path = input("Database file not found. Please enter the path to your database file: ").strip()
-    if os.path.exists(user_input_path):
-        return user_input_path
-    else:
-        print("Invalid path provided.")
-        return None
 
 def run_command(command, verbose=True):
     if verbose:
@@ -350,16 +334,13 @@ def create_release(auto_confirm=False):
     if not os.path.exists(executable_path):
         logger.error(f"Executable not found at {executable_path}")
         return False
-
-    # Find the database file
-    db_file_path = find_db_file()
-    if not db_file_path:
-        logger.error("Database file not found, cannot proceed.")
+    if not os.path.exists(DB_FILE_PATH):
+        logger.error(f"Database file not found at {DB_FILE_PATH}")
         return False
 
     # Files to include in the release
     files_to_release = []
-    for file_path in [executable_path, db_file_path]:
+    for file_path in [executable_path, DB_FILE_PATH]:
         file_size = os.path.getsize(file_path)
         if file_size <= MAX_FILE_SIZE:
             files_to_release.append(file_path)
@@ -428,12 +409,61 @@ def prompt_user(message):
         else:
             print("Please answer with 'y' or 'n'.")
 
+
+def update_readme_todo_changelog():
+    """Update the README.md, TODO.md, and CHANGE.log with new changes."""
+    changes = input("Enter the changes to append: ")
+    timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+    
+    update_content = f"\n\n{timestamp}\n{changes}\n"
+
+    files_to_update = {
+        "README.md": "ReadMe",
+        "TODO.md": "ToDo List",
+        "CHANGE.log": "Changelog"
+    }
+
+    for file_name, file_type in files_to_update.items():
+        file_path = os.path.join(os.getcwd(), file_name)
+        if os.path.exists(file_path):
+            with open(file_path, 'a', encoding='utf-8') as file:
+                file.write(update_content)
+            print(f"Updated {file_name}")
+        else:
+            with open(file_path, 'w', encoding='utf-8') as file:
+                file.write(f"{file_type}\n{update_content}")
+            print(f"Created and updated {file_name}")
+
+def push_changes_to_remote():
+    """Push the changes to the remote repository."""
+    try:
+        # Stage the changes
+        subprocess.run(["git", "add", "README.md", "TODO.md", "CHANGE.log"], check=True)
+        
+        # Commit the changes
+        commit_message = f"Update documentation files - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        subprocess.run(["git", "commit", "-m", commit_message], check=True)
+        
+        # Push the changes
+        subprocess.run(["git", "push"], check=True)
+        
+        print("Changes have been pushed to the remote repository.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error pushing changes to remote: {e}")
+
+
 def main(daemon_mode, build_interval, auto_confirm, use_ollama):
     authenticate_github()
     check_dependencies(auto_confirm)
-
     while True:
         success = build_cycle(auto_confirm, use_ollama)
+        
+        # Update local files
+        update_readme_todo_changelog()
+        
+        # Push changes to remote repository
+        push_changes_to_remote()
+        
         if not daemon_mode:
             sys.exit(0 if success else 1)
         logger.info(f"Waiting for next build cycle. Next build at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time() + build_interval))}")

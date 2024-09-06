@@ -1,11 +1,11 @@
 Here is the updated README in Markdown format:
 
 After building the project, you can run the application using Cargo or directly from the executable:
-```bash
+```
 cargo run --release
 ```
 Or run the executable directly:
-```bash
+```
 ./target/release/war_thunder_camo_installer
 ```
 Ensure the `war_thunder_camouflages.db` database is in the same directory or update the path in the source code.
