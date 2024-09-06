@@ -17,7 +17,7 @@ pub use handlers::{perform_search, add_custom_tags};
 pub use database_handlers::{update_total_camos, refresh_available_tags};
 pub use navigation_handlers::{show_next_camo, show_previous_camo};
 pub use image_handlers::{update_image_grid, load_current_camo_images, clear_cache};
-pub use file_handlers::{apply_custom_structure};
+pub use file_handlers::apply_custom_structure;
 pub use popup_handlers::{show_custom_structure_popup, show_about_popup, show_import_popup};
 pub use utility_handlers::update_app_state;
 
@@ -43,5 +43,4 @@ pub fn initialize_handlers(app: &mut WarThunderCamoInstaller) {
     show_import_popup(app, &egui::Context::default());
     //export_tags(app);
     //import_tags(app);
-    
 }

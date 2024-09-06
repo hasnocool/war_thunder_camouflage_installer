@@ -102,17 +102,21 @@ impl WarThunderCamoInstaller {
     pub fn initialize_database(&mut self, db_path: &Path) -> Result<(), InstallerError> {
         let db_conn = Connection::open(db_path)?;
         database::initialize_database(&db_conn)?;
-
+    
         self.db_conn = Some(db_conn);
-        self.total_camos = database::update_total_camos(self.db_conn.as_ref().unwrap())?;
-        self.available_tags = database::fetch_tags(self.db_conn.as_ref().unwrap(), 0)?;
-
-        if let Ok(Some((index, camo))) = self.fetch_camouflage_by_index(0) {
-            self.set_current_camo(index, camo);
+    
+        // Fetch all camouflages on initial load and update total camouflages
+        let all_camouflages = self.fetch_camouflages(None, &[])?;
+        self.search_results = all_camouflages.clone();
+        self.total_camos = all_camouflages.len();
+    
+        if let Some(first_camo) = all_camouflages.get(0) {
+            self.set_current_camo(0, first_camo.clone());
         }
-
+    
         Ok(())
     }
+    
 
     pub fn fetch_camouflage_by_index(&self, index: usize) -> Result<Option<(usize, Camouflage)>, InstallerError> {
         if let Some(db_conn) = &self.db_conn {

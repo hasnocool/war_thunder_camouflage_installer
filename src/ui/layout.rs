@@ -29,7 +29,12 @@ fn detailed_view(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
     let camouflages_to_display: Vec<_> = app.search_results[start_index..end_index].to_vec();
 
     egui::SidePanel::left("sidebar_panel").show(ctx, |ui| {
-        ui.heading("Camouflages");
+        // Updated heading to show current camouflage index out of total
+        ui.heading(format!(
+            "Camouflages ({}/{})", 
+            app.current_index + 1, 
+            app.total_camos
+        ));
 
         egui::ScrollArea::vertical().show(ui, |ui| {
             for (index, camo) in camouflages_to_display.iter().enumerate() {
@@ -42,6 +47,7 @@ fn detailed_view(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
 
         ui.separator();
         ui.horizontal(|ui| {
+            // Handle pagination
             if ui.button("Previous").clicked() && app.current_page > 0 {
                 app.current_page -= 1;
             }
@@ -54,6 +60,22 @@ fn detailed_view(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
                 app.current_page += 1;
             }
         });
+
+        // Add "Go to Index" feature
+        ui.horizontal(|ui| {
+            ui.label("Go to Index:");
+            let mut input_index = app.current_index.to_string(); // Store the current index as a String for input
+            if ui.text_edit_singleline(&mut input_index).lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                // Check bounds and set the camouflage by the input index
+                if let Ok(index) = input_index.parse::<usize>() {
+                    if index < app.total_camos {
+                        if let Some(camo) = app.search_results.get(index) {
+                            app.set_current_camo(index, camo.clone());
+                        }
+                    }
+                }
+            }
+        });
     });
 
     egui::CentralPanel::default().show(ctx, |ui| {
@@ -62,14 +84,13 @@ fn detailed_view(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
             components::camouflage_details(app, ui);
             ui.add_space(20.0);
             ui.heading("Images");
-            show_image_grid_for_detailed_view(ui, app);
+            components::show_image_grid_for_detailed_view(ui, app);
 
-            // Fix: Borrow immutably first, then borrow mutably later.
             ui.horizontal(|ui| {
                 if let Some(current_camo) = &app.current_camo {
-                    let zip_url = current_camo.zip_file_url.clone();  // Clone the URL
+                    let zip_url = current_camo.zip_file_url.clone(); // Clone the URL
                     if ui.button("Install Skin").clicked() {
-                        app.start_skin_installation(&zip_url);  // Mutate app here
+                        app.start_skin_installation(&zip_url);
                     }
                 } else {
                     ui.label("No camouflage selected.");
@@ -99,7 +120,6 @@ fn central_panel(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
             ui.heading("Images");
             show_image_grid_for_main_view(ui, app);
 
-            // Fix: Borrow immutably first, then borrow mutably later.
             ui.horizontal(|ui| {
                 if let Some(current_camo) = &app.current_camo {
                     let zip_url = current_camo.zip_file_url.clone();  // Clone the URL
@@ -114,8 +134,8 @@ fn central_panel(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
     });
 }
 
-// Function to show the image grid in the detailed view
-fn show_image_grid_for_detailed_view(ui: &mut egui::Ui, app: &WarThunderCamoInstaller) {
+// Function to show the image grid in the main view
+fn show_image_grid_for_main_view(ui: &mut egui::Ui, app: &WarThunderCamoInstaller) {
     if let Some(current_camo) = &app.current_camo {
         let images = app.images.lock().unwrap();
         if images.is_empty() {
@@ -123,7 +143,7 @@ fn show_image_grid_for_detailed_view(ui: &mut egui::Ui, app: &WarThunderCamoInst
             return;
         }
 
-        // Display the first image as the avatar in original size
+        // Display the first image as the avatar
         if let Some(avatar_url) = current_camo.image_urls.get(0) {
             if let Some(texture_handle) = images.get(avatar_url) {
                 let size = texture_handle.size_vec2();
@@ -135,12 +155,13 @@ fn show_image_grid_for_detailed_view(ui: &mut egui::Ui, app: &WarThunderCamoInst
         let image_width = 150.0;
         let num_columns = (available_width / image_width).floor() as usize;
 
-        egui::Grid::new("image_grid_for_detailed_view")
+        // Display the rest of the images (skip the avatar)
+        egui::Grid::new("image_grid_for_main_view")
             .num_columns(num_columns)
             .spacing([10.0, 10.0])
             .striped(true)
             .show(ui, |ui| {
-                for url in &current_camo.image_urls[1..] { // Skip the avatar
+                for url in &current_camo.image_urls[1..] {
                     if let Some(texture_handle) = images.get(url) {
                         let size = texture_handle.size_vec2();
                         let aspect_ratio = size.x / size.y;
@@ -150,34 +171,8 @@ fn show_image_grid_for_detailed_view(ui: &mut egui::Ui, app: &WarThunderCamoInst
                 }
             });
     } else {
-        ui.label("No camouflage selected");
+        ui.label("No camouflage selected.");
     }
-}
-
-// Function to show the image grid in the main view
-fn show_image_grid_for_main_view(ui: &mut egui::Ui, app: &WarThunderCamoInstaller) {
-    let images = app.images.lock().unwrap();
-    if images.is_empty() {
-        ui.label("No images to display.");
-        return;
-    }
-
-    let available_width = ui.available_width();
-    let image_width = 150.0;
-    let num_columns = (available_width / image_width).floor() as usize;
-
-    egui::Grid::new("image_grid_for_main_view")
-        .num_columns(num_columns)
-        .spacing([10.0, 10.0])
-        .striped(true)
-        .show(ui, |ui| {
-            for (_, texture_handle) in images.iter() {
-                let size = texture_handle.size_vec2();
-                let aspect_ratio = size.x / size.y;
-                let scaled_height = image_width / aspect_ratio;
-                ui.image(texture_handle.id(), [image_width, scaled_height]);
-            }
-        });
 }
 
 fn bottom_panel(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {

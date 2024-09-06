@@ -1,27 +1,27 @@
 use super::app::WarThunderCamoInstaller;
 
 pub fn show_next_camo(app: &mut WarThunderCamoInstaller) {
-    // If no camouflages or search results are present, return early
-    if app.total_camos == 0 || (app.search_mode && app.search_results.is_empty()) {
+    let total_camos = if app.search_mode {
+        app.search_results.len()
+    } else {
+        app.total_camos
+    };
+
+    if total_camos == 0 {
         app.error_message = Some("No camouflages available.".to_string());
         return;
     }
 
-    if app.search_mode {
-        if app.current_index < app.search_results.len() - 1 {
-            app.current_index += 1;
-            if let Some(camo) = app.search_results.get(app.current_index) {
-                app.set_current_camo(app.current_index, camo.clone());
-            }
+    if app.current_index < total_camos - 1 {
+        app.current_index += 1;
+        let camo = if app.search_mode {
+            app.search_results.get(app.current_index).cloned()
         } else {
-            app.error_message = Some("Already at the last camouflage.".to_string());
-        }
-    } else if app.current_index < app.total_camos - 1 {
-        let next_index = app.current_index + 1;
-        if let Ok(Some((index, camo))) = app.fetch_camouflage_by_index(next_index) {
-            app.set_current_camo(index, camo);
-        } else {
-            app.error_message = Some("Failed to load the next camouflage.".to_string());
+            app.fetch_camouflage_by_index(app.current_index).ok().flatten().map(|(_, camo)| camo)
+        };
+
+        if let Some(camo) = camo {
+            app.set_current_camo(app.current_index, camo);
         }
     } else {
         app.error_message = Some("Already at the last camouflage.".to_string());
@@ -29,26 +29,21 @@ pub fn show_next_camo(app: &mut WarThunderCamoInstaller) {
 }
 
 pub fn show_previous_camo(app: &mut WarThunderCamoInstaller) {
-    // If no camouflages or search results are present, return early
-    if app.total_camos == 0 || (app.search_mode && app.search_results.is_empty()) {
-        app.error_message = Some("No camouflages available.".to_string());
+    if app.total_camos == 0 || app.current_index == 0 {
+        app.error_message = Some("Already at the first camouflage.".to_string());
         return;
     }
 
-    if app.current_index > 0 {
-        app.current_index -= 1;
-        if app.search_mode {
-            if let Some(camo) = app.search_results.get(app.current_index) {
-                app.set_current_camo(app.current_index, camo.clone());
-            }
-        } else {
-            if let Ok(Some((index, camo))) = app.fetch_camouflage_by_index(app.current_index) {
-                app.set_current_camo(index, camo);
-            } else {
-                app.error_message = Some("Failed to load the previous camouflage.".to_string());
-            }
-        }
+    app.current_index -= 1;
+
+    let camo = if app.search_mode {
+        app.search_results.get(app.current_index).cloned()
     } else {
-        app.error_message = Some("Already at the first camouflage.".to_string());
+        app.fetch_camouflage_by_index(app.current_index).ok().flatten().map(|(_, camo)| camo)
+    };
+
+    if let Some(camo) = camo {
+        app.set_current_camo(app.current_index, camo);
     }
 }
+
