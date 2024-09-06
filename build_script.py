@@ -17,7 +17,6 @@ CONFIG_FILE = "config.ini"
 OLLAMA_MODEL = "llama3"
 OLLAMA_API_URL = "http://192.168.1.26:11434"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_FILE_PATH = os.path.join(os.path.dirname(SCRIPT_DIR), "wtci_db", "war_thunder_camouflages.db")
 MAX_FILE_SIZE = 200 * 1024 * 1024  # 200MB in bytes
 
 # Update these variables with your correct repository information
@@ -27,6 +26,23 @@ GITHUB_REPO_NAME = "war_thunder_camouflage_installer"
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+def find_db_file():
+    """Search for the database file in '..\\wtci_db' and current directory. Prompt if not found."""
+    potential_paths = [os.path.join("..", "wtci_db", "war_thunder_camouflages.db"), "war_thunder_camouflages.db"]
+    
+    for path in potential_paths:
+        if os.path.exists(path):
+            print(f"Database found at: {path}")
+            return path
+
+    # If not found, prompt user for the path
+    user_input_path = input("Database file not found. Please enter the path to your database file: ").strip()
+    if os.path.exists(user_input_path):
+        return user_input_path
+    else:
+        print("Invalid path provided.")
+        return None
 
 def run_command(command, verbose=True):
     if verbose:
@@ -334,13 +350,16 @@ def create_release(auto_confirm=False):
     if not os.path.exists(executable_path):
         logger.error(f"Executable not found at {executable_path}")
         return False
-    if not os.path.exists(DB_FILE_PATH):
-        logger.error(f"Database file not found at {DB_FILE_PATH}")
+
+    # Find the database file
+    db_file_path = find_db_file()
+    if not db_file_path:
+        logger.error("Database file not found, cannot proceed.")
         return False
 
     # Files to include in the release
     files_to_release = []
-    for file_path in [executable_path, DB_FILE_PATH]:
+    for file_path in [executable_path, db_file_path]:
         file_size = os.path.getsize(file_path)
         if file_size <= MAX_FILE_SIZE:
             files_to_release.append(file_path)
