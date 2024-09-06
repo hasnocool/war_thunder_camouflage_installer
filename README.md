@@ -1,3 +1,5 @@
+![logo-v1 0 0](https://github.com/user-attachments/assets/fc11aa67-cc24-43ea-8826-7bfc90e58f09)
+
 Here is the updated README in Markdown format:
 
 After building the project, you can run the application using Cargo or directly from the executable:
