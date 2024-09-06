@@ -2,6 +2,7 @@ import os
 import subprocess
 import pyperclip
 import argparse
+from datetime import datetime
 
 # List of directories and files to exclude
 EXCLUDE_PATTERNS = [
@@ -20,14 +21,11 @@ EXCLUDE_EXTENSIONS = [".rs.bk", ".db"]
 def should_exclude(file_path):
     """Check if a file or directory should be excluded based on the given patterns."""
     base_name = os.path.basename(file_path)
-    # Ignore hidden files and directories (starting with a dot)
     if base_name.startswith('.'):
         return True
-    # Check for patterns in the blacklist
     for pattern in EXCLUDE_PATTERNS:
         if pattern in file_path:
             return True
-    # Check for excluded extensions
     for ext in EXCLUDE_EXTENSIONS:
         if file_path.endswith(ext):
             return True
@@ -37,10 +35,8 @@ def list_files_recursively(base_dir):
     """Recursively list all files in the base directory, excluding specified patterns."""
     file_list = []
     for root, dirs, files in os.walk(base_dir):
-        # Exclude specified directories and hidden directories
         dirs[:] = [d for d in dirs if not should_exclude(os.path.join(root, d))]
         for file in files:
-            # Exclude specified files and hidden files
             file_path = os.path.join(root, file)
             if not should_exclude(file_path):
                 file_list.append(file_path)
@@ -50,7 +46,6 @@ def generate_file_tree(base_dir):
     """Generate a directory and file tree structure."""
     tree = ""
     for root, dirs, files in os.walk(base_dir):
-        # Exclude specified directories and hidden directories
         dirs[:] = [d for d in dirs if not should_exclude(os.path.join(root, d))]
         level = root.replace(base_dir, '').count(os.sep)
         indent = ' ' * 4 * level
@@ -124,6 +119,35 @@ def parse_arguments():
         help="Query for ChatGPT to ask about the project (e.g., 'How to fix the borrow checker issue?')."
     )
     return parser.parse_args()
+
+def append_to_file(file_path, content):
+    """Append new content to the specified file."""
+    try:
+        with open(file_path, 'a', encoding='utf-8') as file:
+            file.write(content)
+        print(f"Appended changes to {file_path}")
+    except Exception as e:
+        print(f"Error appending to {file_path}: {e}")
+
+def update_readme_todo_changelog():
+    """Update the README.md, TODO.md, and CHANGE.log with new changes."""
+    changes = input("Enter the changes to append: ")
+    timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+    
+    update_content = f"\n\n{timestamp}\n{changes}\n"
+
+    files_to_update = {
+        "README.md": "ReadMe",
+        "TODO.md": "ToDo List",
+        "CHANGE.log": "Changelog"
+    }
+
+    for file_name, file_type in files_to_update.items():
+        file_path = os.path.join(os.getcwd(), file_name)
+        if os.path.exists(file_path):
+            append_to_file(file_path, update_content)
+        else:
+            print(f"{file_name} not found, skipping.")
 
 def format_llm_prompt(user_query, file_context, error_output, file_tree):
     """Format the LLM prompt in a structured format."""
@@ -232,6 +256,9 @@ def main():
     # Print and copy the output to the clipboard
     print(output)
     pyperclip.copy(output)
+
+    # Update README.md, TODO.md, and CHANGE.log with changes
+    update_readme_todo_changelog()
 
 if __name__ == "__main__":
     main()

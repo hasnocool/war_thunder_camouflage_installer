@@ -1,8 +1,5 @@
 Here is the updated README in Markdown format:
 
-# War Thunder Camouflage Installer
-## Running the Application
-
 After building the project, you can run the application using Cargo or directly from the executable:
 ```bash
 cargo run --release
