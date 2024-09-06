@@ -1,3 +1,5 @@
+// Removed the unused variable 'current_camo' and associated unused functions
+
 use eframe::egui;
 use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
@@ -83,22 +85,13 @@ impl WarThunderCamoInstaller {
         }
     }
 
-    pub fn new_without_db() -> Self {
-        Self::new()
-    }
-
+    // In src/ui/app.rs, remove the unused variable:
     pub fn start_skin_installation(&mut self, zip_url: &str) {
-        if let Some(current_camo) = &self.current_camo {
+        if self.current_camo.is_some() {
             file_handlers::install_skin(self, zip_url);
             self.error_message = Some("Skin installation initiated.".to_string());
         } else {
             self.error_message = Some("No camouflage selected for installation.".to_string());
-        }
-    }
-
-    pub fn set_database_file(&mut self, path: &Path) {
-        if let Err(e) = self.initialize_database(path) {
-            self.error_message = Some(format!("Failed to set database file: {}", e));
         }
     }
 

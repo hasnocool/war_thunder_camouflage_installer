@@ -164,41 +164,4 @@ pub fn custom_tags_input(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     });
 }
 
-fn show_image_grid_for_detailed_view(ui: &mut egui::Ui, app: &WarThunderCamoInstaller) {
-    if let Some(current_camo) = &app.current_camo {
-        let images = app.images.lock().unwrap();
-        if images.is_empty() {
-            ui.label("No images to display.");
-            return;
-        }
 
-        // Display the first image as the avatar in original size
-        if let Some(avatar_url) = current_camo.image_urls.get(0) {
-            if let Some(texture_handle) = images.get(avatar_url) {
-                let size = texture_handle.size_vec2();
-                ui.image(texture_handle.id(), size);
-            }
-        }
-
-        let available_width = ui.available_width();
-        let image_width = 150.0;
-        let num_columns = (available_width / image_width).floor() as usize;
-
-        egui::Grid::new("image_grid_for_detailed_view")
-            .num_columns(num_columns)
-            .spacing([10.0, 10.0])
-            .striped(true)
-            .show(ui, |ui| {
-                for url in &current_camo.image_urls[1..] { // Skip the avatar
-                    if let Some(texture_handle) = images.get(url) {
-                        let size = texture_handle.size_vec2();
-                        let aspect_ratio = size.x / size.y;
-                        let scaled_height = image_width / aspect_ratio;
-                        ui.image(texture_handle.id(), [image_width, scaled_height]);
-                    }
-                }
-            });
-    } else {
-        ui.label("No camouflage selected");
-    }
-}
