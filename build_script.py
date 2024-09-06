@@ -7,20 +7,22 @@ import logging
 import toml
 import configparser
 import requests
+from datetime import datetime
+import shutil
 
 # Configuration
 CARGO_BUILD_OPTIONS = "--release -j50"
 DEFAULT_BUILD_INTERVAL = 3600  # 1 hour
 CONFIG_FILE = "config.ini"
 OLLAMA_MODEL = "llama3"
-OLLAMA_API_URL = "http://192.168.1.223:11434"
+OLLAMA_API_URL = "http://192.168.1.26:11434"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE_PATH = os.path.join(os.path.dirname(SCRIPT_DIR), "wtci_db", "war_thunder_camouflages.db")
-MAX_FILE_SIZE = 200 * 1024 * 1024  # 100MB in bytes
+MAX_FILE_SIZE = 200 * 1024 * 1024  # 200MB in bytes
 
 # Update these variables with your correct repository information
-GITHUB_REPO_OWNER = "hasnocool"  # Replace with your GitHub username
-GITHUB_REPO_NAME = "war_thunder_camouflage_installer"  # Replace with your repository name
+GITHUB_REPO_OWNER = "hasnocool"
+GITHUB_REPO_NAME = "war_thunder_camouflage_installer"
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -102,6 +104,95 @@ def cargo_test(auto_confirm=True):
         return (0, "", "")
     return run_command("cargo test", verbose=True)
 
+def get_git_diff(file_path):
+    first_commit = run_command("git rev-list --max-parents=0 HEAD", verbose=False)[1].strip()
+    return run_command(f"git diff {first_commit} -- {file_path}", verbose=False)[1]
+
+def update_file_with_ollama(file_path, file_type, changes):
+    with open(file_path, 'r') as f:
+        current_content = f.read()
+
+    if file_type == "changelog":
+        prompt = f"""
+Based on the following changes, generate an updated CHANGE.log. Append the new changes to the existing content, don't modify the previous entries. Use the following format:
+
+[YYYY-MM-DD]
+- Change description 1
+- Change description 2
+
+Current content:
+{current_content}
+
+Changes to append:
+{changes}
+
+Only provide the updated CHANGE.log content, nothing else.
+"""
+    elif file_type in ["todo list", "readme"]:
+        prompt = f"""
+Based on the following changes, generate an updated {file_type} in Markdown format. Use the following structure:
+
+# Title
+
+## Section 1
+- Item 1
+- Item 2
+
+## Section 2
+...
+
+Current content:
+{current_content}
+
+Changes to incorporate:
+{changes}
+
+Only provide the updated {file_type} content, nothing else.
+"""
+
+    updated_content = ""
+    while True:
+        payload = {
+            "model": OLLAMA_MODEL,
+            "prompt": prompt,
+            "stream": False
+        }
+        
+        headers = {'Content-Type': 'application/json'}
+        response = requests.post(f"{OLLAMA_API_URL}/api/generate", json=payload, headers=headers)
+        response.raise_for_status()
+        
+        chunk = response.json().get("response", "").strip()
+        updated_content += chunk
+        
+        if chunk.endswith(("```", ".")):  # Assuming the response is complete if it ends with ``` or a period
+            break
+        else:
+            prompt = "Continue from where you left off:"
+    
+    if file_type == "changelog":
+        # Ensure the new entry is properly dated and appended
+        today = datetime.now().strftime("[%Y-%m-%d]")
+        if today not in updated_content:
+            updated_content = f"{current_content}\n\n{today}\n{updated_content}"
+    
+    with open(file_path, 'w') as f:
+        f.write(updated_content)
+    
+    logger.info(f"Updated {file_path}")
+
+def update_files():
+    files_to_update = {
+        "CHANGE.log": "changelog",
+        "TODO.md": "todo list",
+        "README.md": "readme"
+    }
+    
+    for file_name, file_type in files_to_update.items():
+        file_path = os.path.join(SCRIPT_DIR, file_name)
+        changes = get_git_diff(file_path)
+        update_file_with_ollama(file_path, file_type, changes)
+
 def generate_detailed_changes_summary():
     try:
         run_command("git fetch", verbose=True)
@@ -124,7 +215,7 @@ def generate_detailed_changes_summary():
             logger.error("No valid remote branch found (e.g., origin/main or origin/master).")
             return ""
 
-        code, output, _ = run_command(f"git diff {remote_branch} -- src/ Cargo.toml", verbose=True)
+        code, output, _ = run_command(f"git diff {remote_branch} -- src/ Cargo.toml CHANGE.log TODO.md README.md", verbose=True)
         if code != 0:
             logger.error("Failed to get the diff of modified files against the remote.")
             return ""
@@ -175,39 +266,45 @@ def git_commit_and_push(auto_confirm=False, use_ollama=False):
 
     return code, output, error
 
-
 def generate_commit_message_with_ollama(changes_summary):
-    try:
-        prompt = (
-            "Based on the following changes in the source files and Cargo.toml, "
-            "generate a concise and factual commit message summarizing these updates. "
-            "Only provide the commit message, nothing else.\n\n"
-            "Example commit message format:\n"
-            "- Refactored API endpoints to improve performance and scalability.\n"
-            "- Added error handling to enhance debugging capabilities.\n"
-            "- Fixed UI alignment issue on the dashboard (Fixes #234).\n"
-            "- Updated Cargo dependencies to the latest stable versions.\n\n"
-            f"Changes summary:\n{changes_summary}"
-        )
+    prompt = f"""
+Based on the following changes in the source files, Cargo.toml, CHANGE.log, TODO.md, and README.md, 
+generate a concise and factual commit message summarizing these updates. 
+Only provide the commit message, nothing else.
 
+Example commit message format:
+- Refactored API endpoints to improve performance and scalability.
+- Updated CHANGE.log with recent modifications.
+- Revised TODO.md, removing completed tasks and adding new features.
+- Enhanced README.md with improved project description and usage instructions.
+- Updated Cargo dependencies to the latest stable versions.
+
+Changes summary:
+{changes_summary}
+"""
+
+    commit_message = ""
+    while True:
         payload = {
             "model": OLLAMA_MODEL,
             "prompt": prompt,
             "stream": False
         }
-        
+
         headers = {'Content-Type': 'application/json'}
         response = requests.post(f"{OLLAMA_API_URL}/api/generate", json=payload, headers=headers)
         response.raise_for_status()
-        
-        print(f"Raw response from Ollama: {response.text}")
-        
-        commit_message = response.json().get("response", "").strip()
-        logger.info(f"Generated commit message: {commit_message}")
-        return commit_message
-    except requests.RequestException as e:
-        logger.error(f"Error generating commit message with Ollama: {e}")
-        return None
+
+        chunk = response.json().get("response", "").strip()
+        commit_message += chunk
+
+        if chunk.endswith((".", "-")):  # Assuming the response is complete if it ends with a period or dash
+            break
+        else:
+            prompt = "Continue the commit message from where you left off:"
+
+    logger.info(f"Generated commit message: {commit_message}")
+    return commit_message
 
 def get_project_info():
     try:
@@ -218,31 +315,6 @@ def get_project_info():
     except Exception as e:
         logger.error(f"Error reading Cargo.toml: {e}")
         return None, str(e)
-
-def copy_executable(auto_confirm=False):
-    logger.info("Copying executable to binaries folder...")
-    if not os.path.exists(BINARIES_FOLDER):
-        os.makedirs(BINARIES_FOLDER)
-
-    project_name, error = get_project_info()
-    if not project_name:
-        logger.error(f"Failed to get project name: {error}")
-        return False
-    
-    source_path = os.path.join("target", "release", f"{project_name}.exe")
-    destination_path = os.path.join(BINARIES_FOLDER, f"{project_name}.exe")
-    
-    if not os.path.exists(source_path):
-        logger.error(f"Executable not found at {source_path}")
-        return False
-    
-    try:
-        shutil.copy(source_path, destination_path)
-        logger.info(f"Executable copied successfully to {destination_path}")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to copy executable: {e}")
-        return False
 
 def create_release(auto_confirm=False):
     logger.info("Creating a new release...")
@@ -273,7 +345,7 @@ def create_release(auto_confirm=False):
         if file_size <= MAX_FILE_SIZE:
             files_to_release.append(file_path)
         else:
-            logger.warning(f"Skipping {file_path} (size: {file_size / 1024 / 1024:.2f}MB) as it exceeds GitHub's 100MB limit")
+            logger.warning(f"Skipping {file_path} (size: {file_size / 1024 / 1024:.2f}MB) as it exceeds GitHub's file size limit")
 
     if not files_to_release:
         logger.error("No files to release after size check")
@@ -294,8 +366,8 @@ def create_release(auto_confirm=False):
     else:
         logger.error(f"Failed to create release: {error}")
         return False
-    
-def build_cycle(auto_confirm=False, use_ollama=False):
+
+def build_cycle(auto_confirm, use_ollama):
     logger.info(f"Starting build cycle at {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
     code, output, error = git_pull(auto_confirm)
@@ -312,6 +384,8 @@ def build_cycle(auto_confirm=False, use_ollama=False):
     if code != 0:
         logger.error(f"Tests failed: {error}")
         return False
+
+    update_files()
 
     code, output, error = git_commit_and_push(auto_confirm, use_ollama)
     if code != 0:
