@@ -28,3 +28,6 @@ Here is the updated CHANGE.log content:
 ### 8/29/2025
 +[New]
 +Added support for lazy loading of images to improve page load times and reduce resource usage.
+
+[2024-09-06 00:25:52]
+
