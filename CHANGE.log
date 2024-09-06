@@ -1,4 +1,4 @@
-Here is the updated CHANGE.log content:
+Here is the updated CHANGE.log:
 
 ### 8/29/2025
 +[2024-09-05]
@@ -11,14 +11,9 @@ Here is the updated CHANGE.log content:
 Here is the updated CHANGE.log content:
 
 ### 8/29/2025
-+[2024-09-05]
-+Updated load_image function to:
-+- Spawn a new thread for each image URL that needs to be loaded using std::thread::spawn (Parallel Image Loading).
-+- Changed load_image to be a standalone function (now accepts sender as an argument) so it can be called within a thread without needing to borrow the entire self instance (Static load_image Function).
-+- Used reqwest::blocking::get to fetch images in the load_image function (Blocking Image Fetching).
-
-### 8/29/2025
 +[New]
 +Fixed image loading issue by adding error handling for failed requests and improved logging for debugging purposes.
 
-Note: The new changes are appended at the end, maintaining the original format.
+### 8/29/2025
++[2024-10-15]
++Added new feature to [briefly describe the new feature].

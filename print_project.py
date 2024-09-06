@@ -147,7 +147,27 @@ def update_readme_todo_changelog():
         if os.path.exists(file_path):
             append_to_file(file_path, update_content)
         else:
-            print(f"{file_name} not found, skipping.")
+            print(f"{file_name} not found, creating it.")
+            with open(file_path, 'w', encoding='utf-8') as file:
+                file.write(f"{file_type}\n{update_content}")
+
+def push_changes_to_remote():
+    """Push the changes to the remote repository."""
+    try:
+        # Stage the changes
+        subprocess.run(["git", "add", "README.md", "TODO.md", "CHANGE.log"], check=True)
+        
+        # Commit the changes
+        commit_message = f"Update documentation files - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        subprocess.run(["git", "commit", "-m", commit_message], check=True)
+        
+        # Push the changes
+        subprocess.run(["git", "push"], check=True)
+        
+        print("Changes have been pushed to the remote repository.")
+    except subprocess.CalledProcessError as e:
+        print(f"Error pushing changes to remote: {e}")
+
 
 def format_llm_prompt(user_query, file_context, error_output, file_tree):
     """Format the LLM prompt in a structured format."""
@@ -167,15 +187,15 @@ def ollama_query(query):
     """Send a query to the Ollama model and return the response."""
     try:
         result = subprocess.run(
-            ["ollama", "query", query],
+            ["ollama", "run", "mistral", query],
             capture_output=True,
             text=True,
-            shell=True
+            check=True
         )
         return result.stdout
-    except Exception as e:
-        return f"Error running Ollama query: {e}"
-
+    except subprocess.CalledProcessError as e:
+        return f"Error running Ollama query: {e.stdout}\n{e.stderr}"
+    
 def find_db_file():
     """Search for the database file in '..\\wtci_db' and current directory. Prompt if not found."""
     potential_paths = [os.path.join("..", "wtci_db", "war_thunder_camouflages.db"), "war_thunder_camouflages.db"]
@@ -260,5 +280,10 @@ def main():
     # Update README.md, TODO.md, and CHANGE.log with changes
     update_readme_todo_changelog()
 
+    # Push changes to remote repository
+    push_changes_to_remote()
+
 if __name__ == "__main__":
     main()
+
+
