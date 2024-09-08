@@ -1,17 +1,5 @@
 ![logo-v1 0 0](https://github.com/user-attachments/assets/fc11aa67-cc24-43ea-8826-7bfc90e58f09)
 
-### Announcement: Mac OSX Now Supported
-![DALL·E 2024-09-08 16 01 12 - A logo for War Thunder Camouflage Installer v1 0 0 designed for macOS Big Sur](https://github.com/user-attachments/assets/7d690502-60eb-41dc-b165-198a74eb50ce)
-
-We are excited to announce that the **War Thunder Camouflage Installer v1.0.0** is now compatible with **macOS Big Sur**! The same great features, now for Mac users. Easily install camouflages with a simple, streamlined process on your Mac.
-
----
-
-### Mac OSX Screenshot on Big Sur
-![Screen Shot 2024-09-08 at 3 12 15 PM](https://github.com/user-attachments/assets/7c25d499-499e-465c-a1d0-98c61c0713a5)
-
----
-
 ## How to Install the War Thunder Camo Installer
 
 Hey there! If you're new to this, don't worry, I've got you. Here’s how to get everything up and running. Follow these steps carefully, just like we’re putting together a puzzle!
@@ -32,26 +20,13 @@ Once you’ve downloaded these two files, make sure they are **in the same folde
 
 This part is very important! If they’re not in the same folder, the app won’t be able to find the database, and it will get confused. Think of the `.exe` and `.db` as best friends – they need to be together!
 
----
+### Step 4: Run the App
 
-### Step 4: Set the Database in the App
-
-Currently, the app does not automatically load the database when you run it. You will need to manually select the database file:
-
-1. **Go to the File Menu**: After opening the app, navigate to the "File" menu.
-2. **Set Database Location**: Choose the option to set the database location, and then select the `war_thunder_camouflages.db` file you downloaded earlier.
-
-Make sure to do this step every time you start the app, as the database does not load automatically yet.
-
----
-
-### Step 5: Run the App
-
-To start the app, simply double-click the `.exe` file. It will open up, and after setting the database location (Step 4), it should automatically connect to the database.
+To start the app, simply double-click the `.exe` file. It will open up, and it should automatically connect to the database.
 
 If everything is in the right place, you’re good to go!
 
-### Step 6: Install Some Cool Skins!
+### Step 5: Install Some Cool Skins!
 
 Once the app is running, you can use it to search for, view, and install awesome War Thunder camouflages. Just follow the on-screen instructions, and you’ll have cool new skins in no time!
 
