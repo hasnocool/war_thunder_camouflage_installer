@@ -1,4 +1,4 @@
-![logo-v1 0 0](https://github.com/user-attachments/assets/fc11aa67-cc24-43ea-8826-7bfc90e58f09)
+![DALL·E 2024-09-08 16 01 12 - A logo for War Thunder Camouflage Installer v1 0 0 designed for macOS Big Sur](https://github.com/user-attachments/assets/7d690502-60eb-41dc-b165-198a74eb50ce)
 
 # War Thunder Camouflage Installer v1.0.0 - macOS Big Sur Edition
 
@@ -7,7 +7,6 @@ Welcome to the **macOS Big Sur** version of the **War Thunder Camouflage Install
 ---
 
 ### macOS Big Sur Announcement
-![DALL·E 2024-09-08 16 01 12 - A logo for War Thunder Camouflage Installer v1 0 0 designed for macOS Big Sur](https://github.com/user-attachments/assets/7d690502-60eb-41dc-b165-198a74eb50ce)
 
 We are proud to announce that the **War Thunder Camouflage Installer v1.0.0** is fully compatible with **macOS Big Sur**! Enjoy the same streamlined experience, now optimized for macOS, with easy camouflage installation for War Thunder.
 
