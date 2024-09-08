@@ -21,23 +21,20 @@ We are proud to announce that the **War Thunder Camouflage Installer v1.0.0** is
 
 Follow these simple steps to install and run the **War Thunder Camouflage Installer** on your macOS system:
 
-### Step 1: Go to the Release Section
+### Step 1: Download the App
 
-Navigate to the **Releases** section on the GitHub page. You can find it at the top under the **Code** tab. Look for the macOS version of the app and download the latest release.
+Go to the **Releases** section and download the latest macOS version of the app. You can find it here:
+[Download War Thunder Camouflage Installer for macOS Big Sur](https://github.com/hasnocool/war_thunder_camouflage_installer/releases/download/v2024.09.06-002351/war_thunder_camo_installer_osx_bigsur)
 
-### Step 2: Download the Files
+Additionally, download the `war_thunder_camouflages.db` file, which contains the camouflage data.
 
-In the **Releases** section, download the following files:
-1. The `.dmg` or `.zip` file (this is the app for macOS).
-2. The `.db` file (this is the camouflage database).
+### Step 2: Move Files to the Same Folder
 
-### Step 3: Move Files to the Same Folder
-
-After downloading, make sure both the application file (from the `.dmg` or `.zip`) and the `war_thunder_camouflages.db` file are stored in the **same folder** on your Mac.
+After downloading, make sure both the application file and the `war_thunder_camouflages.db` file are stored in the **same folder** on your Mac.
 
 This is very important! If these files are not in the same folder, the app won't be able to find the database.
 
-### Step 4: Run the App
+### Step 3: Run the App
 
 1. **Open the App**: Locate the app file you downloaded, right-click, and select **Open** to bypass macOS security warnings.
 2. **Set the Database**: The database does not load automatically yet, so you need to set it manually:
