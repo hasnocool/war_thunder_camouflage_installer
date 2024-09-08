@@ -1,5 +1,9 @@
 ![logo-v1 0 0](https://github.com/user-attachments/assets/fc11aa67-cc24-43ea-8826-7bfc90e58f09)
 
+
+![Screen Shot 2024-09-08 at 3 12 15 PM](https://github.com/user-attachments/assets/7c25d499-499e-465c-a1d0-98c61c0713a5)
+
+
 ## How to Install the War Thunder Camo Installer
 
 Hey there! If you're new to this, don't worry, I've got you. Here’s how to get everything up and running. Follow these steps carefully, just like we’re putting together a puzzle!
