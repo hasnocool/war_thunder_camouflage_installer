@@ -1,5 +1,11 @@
 ![logo-v1 0 0](https://github.com/user-attachments/assets/fc11aa67-cc24-43ea-8826-7bfc90e58f09)
 
+## Announcement: macOS Big Sur Now Supported!
+
+We are excited to announce that **War Thunder Camouflage Installer v1.0.0** now supports **macOS Big Sur**! Mac users can enjoy the same streamlined experience with a dedicated version for macOS. We’ve created a specific README for macOS users, which you can find [here](https://github.com/hasnocool/war_thunder_camouflage_installer/blob/master/README.MACOSX.md).
+
+---
+
 ## How to Install the War Thunder Camo Installer
 
 Hey there! If you're new to this, don't worry, I've got you. Here’s how to get everything up and running. Follow these steps carefully, just like we’re putting together a puzzle!
@@ -98,3 +104,8 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ## Acknowledgments
 
 Big thanks to everyone who made this project possible! Special shout-out to the libraries used: `eframe`, `egui`, `rusqlite`, and more.
+
+
+
+
+NOW INCLUDE A CALL TO ACTION AT THE TOP OF THIS README THAT WE NOW SUPPORT MAC OSX AND WE HAVE COMPILED A VERSION WITH BIG SUR AND THE README TO IT IS HERRE https://github.com/hasnocool/war_thunder_camouflage_installer/blob/master/README.MACOSX.md
