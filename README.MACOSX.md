@@ -1,4 +1,4 @@
-![DALL·E 2024-09-08 16 01 12 - A logo for War Thunder Camouflage Installer v1 0 0 designed for macOS Big Sur](https://github.com/user-attachments/assets/7d690502-60eb-41dc-b165-198a74eb50ce)
+![DALL·E 2024-09-08 16 56 56 - A logo for War Thunder Camouflage Installer v1 0 0 highlighting support for macOS Big Sur  The design should incorporate elements of both military cam](https://github.com/user-attachments/assets/6f4df01d-cc28-4f3e-98b4-79a42dcacfbd)
 
 # War Thunder Camouflage Installer v1.0.0 - macOS Big Sur Edition
 
