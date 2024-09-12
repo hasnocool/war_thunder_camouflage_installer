@@ -120,55 +120,6 @@ def parse_arguments():
     )
     return parser.parse_args()
 
-def append_to_file(file_path, content):
-    """Append new content to the specified file."""
-    try:
-        with open(file_path, 'a', encoding='utf-8') as file:
-            file.write(content)
-        print(f"Appended changes to {file_path}")
-    except Exception as e:
-        print(f"Error appending to {file_path}: {e}")
-
-def update_readme_todo_changelog():
-    """Update the README.md, TODO.md, and CHANGE.log with new changes."""
-    changes = input("Enter the changes to append: ")
-    timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
-    
-    update_content = f"\n\n{timestamp}\n{changes}\n"
-
-    files_to_update = {
-        "README.md": "ReadMe",
-        "TODO.md": "ToDo List",
-        "CHANGE.log": "Changelog"
-    }
-
-    for file_name, file_type in files_to_update.items():
-        file_path = os.path.join(os.getcwd(), file_name)
-        if os.path.exists(file_path):
-            append_to_file(file_path, update_content)
-        else:
-            print(f"{file_name} not found, creating it.")
-            with open(file_path, 'w', encoding='utf-8') as file:
-                file.write(f"{file_type}\n{update_content}")
-
-def push_changes_to_remote():
-    """Push the changes to the remote repository."""
-    try:
-        # Stage the changes
-        subprocess.run(["git", "add", "README.md", "TODO.md", "CHANGE.log"], check=True)
-        
-        # Commit the changes
-        commit_message = f"Update documentation files - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        subprocess.run(["git", "commit", "-m", commit_message], check=True)
-        
-        # Push the changes
-        subprocess.run(["git", "push"], check=True)
-        
-        print("Changes have been pushed to the remote repository.")
-    except subprocess.CalledProcessError as e:
-        print(f"Error pushing changes to remote: {e}")
-
-
 def format_llm_prompt(user_query, file_context, error_output, file_tree):
     """Format the LLM prompt in a structured format."""
     prompt = (
@@ -277,13 +228,5 @@ def main():
     print(output)
     pyperclip.copy(output)
 
-    # Update README.md, TODO.md, and CHANGE.log with changes
-    update_readme_todo_changelog()
-
-    # Push changes to remote repository
-    push_changes_to_remote()
-
 if __name__ == "__main__":
     main()
-
-
