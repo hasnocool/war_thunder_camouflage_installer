@@ -606,8 +606,8 @@ def print_stats(stats, totals, code_ratio, todos, complexity, dependencies, lice
     print(f"\nDetected License: {license}")
 
 def generate_metrics_md(stats, totals, code_ratio, todos, avg_complexity, dependencies, license):
-    """Generate a METRICS.md file with project statistics and images."""
-    print("Generating METRICS.md file...")
+    """Generate a docs\METRICS.md file with project statistics and images."""
+    print("Generating docs\METRICS.md file...")
     
     md_content = f"""# Project Metrics
 
@@ -657,10 +657,10 @@ def generate_metrics_md(stats, totals, code_ratio, todos, avg_complexity, depend
 ![Dependency Graph](project_metrics_images/dependency_graph.png)
 """
 
-    with open('METRICS.md', 'w') as md_file:
+    with open('docs\METRICS.md', 'w') as md_file:
         md_file.write(md_content)
     
-    print("METRICS.md file generated successfully.")
+    print("docs\METRICS.md file generated successfully.")
 
 def main():
     root_dir = '.'  # Current directory

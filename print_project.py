@@ -8,8 +8,7 @@ from datetime import datetime
 EXCLUDE_PATTERNS = [
     "target", "cache", "notes", "binaries", ".idea", ".vscode", ".git",
     "Cargo.lock", "clippy_combined_output.txt", "clippy_combined_output.txt_final.txt",
-    "clippy_full_files_output.txt", "config.ini", "../wtci_db/war_thunder_camouflages.db",
-    "*.db", "build_script_v1.py",
+    "clippy_full_files_output.txt", "config.ini", "*.db",
     # New patterns added
     "build_script.py", "Cargo.toml", "CHANGE.log", "check.py", "print_project.py",
     "README.md", "TAGS.json", "TODO.md", "TREE.md",
@@ -146,23 +145,6 @@ def ollama_query(query):
         return result.stdout
     except subprocess.CalledProcessError as e:
         return f"Error running Ollama query: {e.stdout}\n{e.stderr}"
-    
-def find_db_file():
-    """Search for the database file in '..\\wtci_db' and current directory. Prompt if not found."""
-    potential_paths = [os.path.join("..", "wtci_db", "war_thunder_camouflages.db"), "war_thunder_camouflages.db"]
-    
-    for path in potential_paths:
-        if os.path.exists(path):
-            print(f"Database found at: {path}")
-            return path
-
-    # If not found, prompt user for the path
-    user_input_path = input("Database file not found. Please enter the path to your database file: ").strip()
-    if os.path.exists(user_input_path):
-        return user_input_path
-    else:
-        print("Invalid path provided.")
-        return None
 
 def main():
     # Parse command-line arguments
@@ -170,12 +152,6 @@ def main():
 
     # Define the base directory (current working directory)
     base_dir = os.getcwd()
-
-    # Find the database file
-    db_file_path = find_db_file()
-    if not db_file_path:
-        print("Database file is required to proceed.")
-        return
 
     # Generate the file tree
     file_tree = generate_file_tree(base_dir)
