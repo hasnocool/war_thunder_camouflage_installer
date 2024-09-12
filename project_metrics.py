@@ -192,7 +192,7 @@ def analyze_project(root_dir, git_repo=None):
         "src/ui/handlers/file_handlers.rs", "src/ui/handlers/general_handlers.rs", 
         "src/ui/handlers/image_handlers.rs", "src/ui/handlers/mod.rs", 
         "src/ui/handlers/navigation_handlers.rs", "src/ui/handlers/popup_handlers.rs", 
-        "src/ui/handlers/utility_handlers.rs", "src/ui/layout.rs", "src/ui/mod.rs"
+        "src/ui/handlers/utility_handlers.rs", "src/ui/layout.rs", "src/ui/mod.rs", "src/war_thunder_utils.rs"
     ]
     
     file_list = [
@@ -557,6 +557,63 @@ def print_stats(stats, totals, code_ratio, todos, complexity, dependencies, lice
     
     print(f"\nDetected License: {license}")
 
+def generate_metrics_md(stats, totals, code_ratio, todos, avg_complexity, dependencies, license):
+    """Generate a METRICS.md file with project statistics and images."""
+    print("Generating METRICS.md file...")
+    
+    md_content = f"""# Project Metrics
+
+## Overview
+- **Total Files:** {totals['files']}
+- **Total Lines:** {totals['lines']}
+- **Total Words:** {totals['words']}
+- **Total Characters:** {totals['chars']}
+- **Total Size:** {format_size(totals['size'])}
+- **Code to Comment Ratio:** {code_ratio:.2f}
+- **Average Complexity:** {avg_complexity:.2f}
+- **Detected License:** {license}
+
+## File Type Statistics
+
+| Extension | Files | Lines | Words | Characters | Size |
+|-----------|-------|-------|-------|------------|------|
+"""
+    
+    for ext, data in sorted(stats.items(), key=lambda x: x[1]['size'], reverse=True):
+        md_content += f"| {ext} | {data['files']} | {data['lines']} | {data['words']} | {data['chars']} | {format_size(data['size'])} |\n"
+    
+    md_content += f"""
+## Dependencies
+
+"""
+    for dep, version in dependencies.items():
+        md_content += f"- {dep}: {version}\n"
+    
+    md_content += f"""
+## TODOs and FIXMEs
+
+"""
+    for todo in todos:
+        md_content += f"- {todo}\n"
+    
+    md_content += f"""
+## Visualizations
+
+### Project Growth
+![Project Growth](project_metrics_images/project_growth.png)
+
+### Code Metrics
+![Code Metrics](project_metrics_images/code_metrics.png)
+
+### Dependency Graph
+![Dependency Graph](project_metrics_images/dependency_graph.png)
+"""
+
+    with open('METRICS.md', 'w') as md_file:
+        md_file.write(md_content)
+    
+    print("METRICS.md file generated successfully.")
+
 def main():
     root_dir = '.'  # Current directory
 
@@ -604,6 +661,9 @@ def main():
     dep_graph = generate_dependency_graph(root_dir)
     plot_dependency_graph(dep_graph)
     print(f"Dependency graph generated: {os.path.join(DEFAULT_IMAGE_DIR, 'dependency_graph.png')}\n")
+
+    # Generate METRICS.md file
+    generate_metrics_md(stats, totals, code_ratio, todos, avg_complexity, dependencies, license)
 
 if __name__ == "__main__":
     main()
