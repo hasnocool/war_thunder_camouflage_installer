@@ -17,6 +17,7 @@ import argparse
 # File for storing historical data
 HISTORY_FILE = 'project_metrics_history.csv'
 CACHE_FILE = 'project_metrics_cache.json'
+DEFAULT_IMAGE_DIR = 'project_metrics_images'  # New constant for default image directory
 
 class AtomicCounter:
     """Thread-safe counter for atomic operations."""
@@ -319,6 +320,12 @@ def save_history(stats, totals, avg_complexity, code_to_comment_ratio):
     print("Project history updated.")
 
 
+def ensure_dir_exists(directory):
+    """Ensure that a directory exists, creating it if necessary."""
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+        print(f"Created directory: {directory}")
+
 def plot_history():
     """Plot and save a comprehensive project history as an image."""
     print("Plotting comprehensive project history...")
@@ -388,9 +395,10 @@ def plot_history():
         ax.grid(True)
     
     plt.tight_layout()
-    plt.savefig('project_growth.png')
+    ensure_dir_exists(DEFAULT_IMAGE_DIR)
+    plt.savefig(os.path.join(DEFAULT_IMAGE_DIR, 'project_growth.png'))
     plt.close()
-    print("Comprehensive project growth chart saved as 'project_growth.png'")
+    print(f"Comprehensive project growth chart saved as '{os.path.join(DEFAULT_IMAGE_DIR, 'project_growth.png')}'")
 
 def calculate_complexity(file_path):
     """Calculate the complexity of a file."""
@@ -402,12 +410,12 @@ def calculate_complexity(file_path):
         return 1 + branches
 
 def analyze_code_complexity(file_path):
-    """Analyze the complexity of a Python or Rust file."""
-    with open(file_path, 'r') as file:
+    """Analyze the complexity of a file (Python, Rust, TOML, etc.)."""
+    with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
         content = file.read()
-    
+
     loc = len(content.splitlines())
-    
+
     if file_path.endswith('.py'):
         functions = len(re.findall(r'def\s+\w+\s*\(', content))
         classes = len(re.findall(r'class\s+\w+', content))
@@ -417,13 +425,19 @@ def analyze_code_complexity(file_path):
         structs = len(re.findall(r'struct\s+\w+', content))
         impls = len(re.findall(r'impl\s+', content))
         complexity = content.count('if') + content.count('for') + content.count('while') + content.count('match') + functions + structs + impls
+    elif file_path.endswith('.toml'):
+        # For TOML, we only care about the number of sections and key-value pairs
+        sections = len(re.findall(r'\[.*?\]', content))
+        key_values = len(re.findall(r'=', content))
+        complexity = sections + key_values
     else:
-        return None
-    
+        # For other file types, just calculate lines of code and a basic complexity score
+        complexity = content.count('if') + content.count('for') + content.count('while')
+
     return {
         'loc': loc,
-        'functions': functions,
-        'classes_or_structs': classes if file_path.endswith('.py') else structs,
+        'functions': functions if 'functions' in locals() else 0,
+        'classes_or_structs': classes if 'classes' in locals() else structs if 'structs' in locals() else 0,
         'estimated_complexity': complexity
     }
 
@@ -452,18 +466,18 @@ def generate_dependency_graph(base_dir):
 
 
 def plot_code_metrics(metrics):
-    """Plot various code metrics for Python and Rust files."""
+    """Plot various code metrics for Python, Rust, TOML, and other files."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-    
+
     sizes = [m['loc'] for m in metrics.values()]
     labels = list(metrics.keys())
-    colors = ['blue' if l.endswith('.py') else 'red' for l in labels]
+    colors = ['blue' if l.endswith('.py') else 'red' if l.endswith('.rs') else 'green' for l in labels]  # Different colors for .py, .rs, and others
     ax1.bar(labels, sizes, color=colors)
     ax1.set_title('File Sizes (Lines of Code)')
     ax1.set_xlabel('Files')
     ax1.set_ylabel('Lines of Code')
     plt.setp(ax1.get_xticklabels(), rotation=45, ha='right')
-    
+
     x = [m['functions'] + m['classes_or_structs'] for m in metrics.values()]
     y = [m['estimated_complexity'] for m in metrics.values()]
     ax2.scatter(x, y, c=colors)
@@ -472,12 +486,13 @@ def plot_code_metrics(metrics):
     ax2.set_title('Complexity vs. Functions/Classes/Structs')
     ax2.set_xlabel('Number of Functions + Classes/Structs')
     ax2.set_ylabel('Estimated Complexity')
-    
-    ax1.legend(['Python', 'Rust'])
-    
+
     plt.tight_layout()
-    plt.savefig('code_metrics.png')
+    ensure_dir_exists(DEFAULT_IMAGE_DIR)
+    plt.savefig(os.path.join(DEFAULT_IMAGE_DIR, 'code_metrics.png'))
     plt.close()
+    print(f"Code metrics graph generated: {os.path.join(DEFAULT_IMAGE_DIR, 'code_metrics.png')}")
+
 
 def plot_dependency_graph(G):
     """Plot the dependency graph for Python and Rust files."""
@@ -487,13 +502,22 @@ def plot_dependency_graph(G):
     nx.draw(G, pos, with_labels=True, node_color=node_colors, 
             node_size=2000, font_size=8, arrows=True)
     plt.title("Project Dependency Graph (Blue: Python, Red: Rust)")
-    plt.savefig('dependency_graph.png')
+    ensure_dir_exists(DEFAULT_IMAGE_DIR)
+    plt.savefig(os.path.join(DEFAULT_IMAGE_DIR, 'dependency_graph.png'))
     plt.close()
+    print(f"Dependency graph generated: {os.path.join(DEFAULT_IMAGE_DIR, 'dependency_graph.png')}")
+
 
 def analyze_rust_specific_metrics(file_path):
     """Analyze Rust-specific metrics."""
-    with open(file_path, 'r') as file:
-        content = file.read()
+    try:
+        # Attempt to read the file using utf-8 encoding
+        with open(file_path, 'r', encoding='utf-8', errors='replace') as file:
+            content = file.read()
+    except UnicodeDecodeError:
+        # Fallback to latin-1 encoding if utf-8 fails
+        with open(file_path, 'r', encoding='latin-1', errors='replace') as file:
+            content = file.read()
     
     unsafe_blocks = len(re.findall(r'unsafe\s*\{', content))
     lifetimes = len(re.findall(r"'[a-z]+", content))
@@ -504,6 +528,7 @@ def analyze_rust_specific_metrics(file_path):
         'lifetimes': lifetimes,
         'trait_implementations': trait_implementations
     }
+
 
 def print_stats(stats, totals, code_ratio, todos, complexity, dependencies, license):
     """Print statistics for the analyzed project."""
@@ -534,51 +559,51 @@ def print_stats(stats, totals, code_ratio, todos, complexity, dependencies, lice
 
 def main():
     root_dir = '.'  # Current directory
-    
+
     try:
         repo = Repo(root_dir)
         print("Analyzing changes since last commit...")
     except Exception:
         repo = None
         print("Not a Git repository. Analyzing all files...")
-    
+
     stats, totals, todos = analyze_project(root_dir, repo)
-    
+
     code_lines, comment_lines, code_ratio = calculate_code_to_comment_ratio(root_dir)
-    
+
     print("Calculating average complexity...")
     complexity_sum = sum(calculate_complexity(os.path.join(root, file))
                          for root, _, files in os.walk(root_dir)
-                         for file in files if file.endswith(('.rs', '.py')))
+                         for file in files if file.endswith(('.rs', '.py', '.toml')))
     avg_complexity = complexity_sum / totals['files'] if totals['files'] > 0 else 0
-    
+
     dependencies = analyze_dependencies()
     license = detect_license()
-    
+
     print_stats(stats, totals, code_ratio, todos, avg_complexity, dependencies, license)
-    
+
     save_history(stats, totals, avg_complexity, code_ratio)
     plot_history()
 
     # Analyze code complexity and dependencies for files
-    selected_files = [file for file in os.listdir(root_dir) if file.endswith(('.py', '.rs'))]
+    selected_files = []
+    for root, _, files in os.walk(root_dir):
+        selected_files.extend([os.path.join(root, f) for f in files if f.endswith(('.py', '.rs', '.toml'))])
+
     metrics = {}
     rust_specific_metrics = {}
     for file in selected_files:
-        if file.endswith(('.py', '.rs')):
+        if file.endswith(('.py', '.rs', '.toml')):
             metrics[file] = analyze_code_complexity(file)
             if file.endswith('.rs'):
                 rust_specific_metrics[file] = analyze_rust_specific_metrics(file)
 
     plot_code_metrics(metrics)
-    print("\nCode metrics graph generated: code_metrics.png\n")
+    print(f"\nCode metrics graph generated: {os.path.join(DEFAULT_IMAGE_DIR, 'code_metrics.png')}\n")
 
     dep_graph = generate_dependency_graph(root_dir)
     plot_dependency_graph(dep_graph)
-    print("Dependency graph generated: dependency_graph.png\n")
-
+    print(f"Dependency graph generated: {os.path.join(DEFAULT_IMAGE_DIR, 'dependency_graph.png')}\n")
 
 if __name__ == "__main__":
     main()
-
-
