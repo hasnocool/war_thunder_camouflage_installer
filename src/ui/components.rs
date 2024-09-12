@@ -12,19 +12,36 @@ use crate::ui::handlers::general_handlers::change_database_file;
 
 pub fn menu_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     egui::menu::bar(ui, |ui| {
+        // File Menu
         ui.menu_button("File", |ui| {
             if ui.button("Change War Thunder Skins Directory").clicked() {
-                set_wt_skins_directory(app);  // Call the method here
+                set_wt_skins_directory(app);
                 ui.close_menu();
             }
             if ui.button("Change Database File").clicked() {
                 change_database_file(app);
                 ui.close_menu();
             }
-            if ui.button("Custom Structure Settings").clicked() {
-                app.show_custom_structure_popup = true;
+            if ui.button("Clear Cache").clicked() {
+                image_handlers::clear_cache(app);
                 ui.close_menu();
             }
+        });
+
+        // View Menu
+        ui.menu_button("View", |ui| {
+            if ui.button("Detailed View").clicked() {
+                app.show_detailed_view = true;
+                ui.close_menu();
+            }
+            if ui.button("Main View").clicked() {
+                app.show_detailed_view = false;
+                ui.close_menu();
+            }
+        });
+
+        // Tools Menu
+        ui.menu_button("Tools", |ui| {
             if ui.button("Import Local Skin").clicked() {
                 app.show_import_popup = true;
                 ui.close_menu();
@@ -37,24 +54,18 @@ pub fn menu_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
                 database_handlers::import_tags(app);
                 ui.close_menu();
             }
-            if ui.button("Clear Cache").clicked() {
-                image_handlers::clear_cache(app);
+        });
+
+        // Settings Menu
+        ui.menu_button("Settings", |ui| {
+            if ui.button("Custom Structure Settings").clicked() {
+                app.show_custom_structure_popup = true;
                 ui.close_menu();
             }
         });
 
-        ui.menu_button("View", |ui| {
-            if ui.button("Detailed View").clicked() {
-                app.show_detailed_view = true; // New field in app state to toggle detailed view
-                ui.close_menu();
-            }
-            if ui.button("Main View").clicked() {
-                app.show_detailed_view = false;
-                ui.close_menu();
-            }
-        });
-
-        ui.menu_button("About", |ui| {
+        // Help Menu
+        ui.menu_button("Help", |ui| {
             if ui.button("About").clicked() {
                 app.show_about_popup = true;
                 ui.close_menu();
@@ -62,6 +73,7 @@ pub fn menu_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
         });
     });
 }
+
 
 
 pub fn search_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
