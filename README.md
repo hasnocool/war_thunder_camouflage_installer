@@ -109,3 +109,7 @@ Big thanks to everyone who made this project possible! Special shout-out to the 
 
 
 NOW INCLUDE A CALL TO ACTION AT THE TOP OF THIS README THAT WE NOW SUPPORT MAC OSX AND WE HAVE COMPILED A VERSION WITH BIG SUR AND THE README TO IT IS HERRE https://github.com/hasnocool/war_thunder_camouflage_installer/blob/master/README.MACOSX.md
+
+
+[2024-09-11 21:17:15]
+
