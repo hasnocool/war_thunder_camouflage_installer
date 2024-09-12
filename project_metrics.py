@@ -2,13 +2,17 @@ import os
 import re
 import csv
 import json
-from collections import defaultdict
+from collections import defaultdict, Counter
 from datetime import datetime
 import matplotlib.pyplot as plt
 from git import Repo
 import toml
 import magic
 import mmap
+import networkx as nx
+import subprocess
+import pyperclip
+import argparse
 
 # File for storing historical data
 HISTORY_FILE = 'project_metrics_history.csv'
@@ -55,14 +59,13 @@ def count_lines_words_chars(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             content = f.read()
-            lines = content.splitlines()  # Split the content into lines
-            words = content.split()       # Split the content into words
-            chars = len(content)          # Total number of characters
+            lines = content.splitlines()
+            words = content.split()
+            chars = len(content)
         return len(lines), len(words), chars
     except Exception as e:
         print(f"Error counting lines, words, and characters for {file_path}: {str(e)}")
         return 0, 0, os.path.getsize(file_path)
-
 
 def process_file(file_path, git_repo):
     """Process each file and gather statistics."""
@@ -75,7 +78,6 @@ def process_file(file_path, git_repo):
         file_size = os.path.getsize(file_path)
         lines, words, chars = count_lines_words_chars(file_path)
 
-        # If the file is binary, don't count lines and words
         if is_binary(file_path):
             return ext, {'lines': 0, 'words': 0, 'chars': file_size, 'size': file_size, 'todos': []}
         
@@ -84,7 +86,6 @@ def process_file(file_path, git_repo):
     except Exception as e:
         print(f"Error processing file: {file_path}. Error: {str(e)}")
         return ext, None
-
 
 def analyze_chunk(chunk, git_repo):
     """Analyze a chunk of files and return stats and todos."""
@@ -125,6 +126,57 @@ def analyze_chunk(chunk, git_repo):
     
     return local_stats, local_totals, local_todos
 
+
+def detect_license():
+    """Detect the project license by examining the LICENSE file."""
+    print("Detecting project license...")
+    license_files = ['LICENSE', 'LICENSE.txt', 'LICENSE.md']
+    
+    for license_file in license_files:
+        if os.path.exists(license_file):
+            try:
+                with open(license_file, 'r', encoding='utf-8') as file:
+                    content = file.read()
+                    if 'MIT' in content:
+                        return 'MIT License'
+                    elif 'Apache' in content:
+                        return 'Apache License'
+                    elif 'GPL' in content or 'General Public License' in content:
+                        return 'GPL License'
+                    else:
+                        return 'License detected, but not recognized'
+            except Exception as e:
+                print(f"Error reading {license_file}: {e}")
+                return 'Error reading license file'
+    
+    return 'License file not found'
+
+def format_size(size_in_bytes):
+    """Format the size in bytes to a human-readable format."""
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size_in_bytes < 1024.0:
+            return f"{size_in_bytes:.2f} {unit}"
+        size_in_bytes /= 1024.0
+    return f"{size_in_bytes:.2f} PB"
+
+
+def analyze_dependencies():
+    """Analyze project dependencies from Cargo.toml."""
+    print("Analyzing dependencies from Cargo.toml...")
+    cargo_file = 'Cargo.toml'
+    if os.path.exists(cargo_file):
+        try:
+            with open(cargo_file, 'r') as file:
+                cargo_data = toml.load(file)
+                return cargo_data.get('dependencies', {})
+        except Exception as e:
+            print(f"Error reading {cargo_file}: {e}")
+            return {}
+    else:
+        print("Cargo.toml not found.")
+        return {}
+
+
 def analyze_project(root_dir, git_repo=None):
     """Analyze the entire project directory."""
     print(f"Analyzing project in directory: {root_dir}")
@@ -157,7 +209,6 @@ def analyze_project(root_dir, git_repo=None):
     totals_dict = {k: v.get() for k, v in combined_totals.items()}
     
     return stats_dict, totals_dict, combined_todos
-
 
 def is_file_changed(repo, file_path):
     """Check if a file has changed in the repository."""
@@ -230,7 +281,7 @@ def save_history(stats, totals, avg_complexity, code_to_comment_ratio):
     print("Saving project history...")
     fieldnames = ['timestamp', 'total_files', 'total_lines', 'total_words', 'total_chars', 'total_size', 'avg_complexity', 'code_to_comment_ratio']
     file_exists = os.path.isfile(HISTORY_FILE)
-    
+
     current_entry = {
         'timestamp': datetime.now().isoformat(),
         'total_files': totals['files'],
@@ -238,39 +289,41 @@ def save_history(stats, totals, avg_complexity, code_to_comment_ratio):
         'total_words': totals['words'],
         'total_chars': totals['chars'],
         'total_size': totals['size'],
-        'avg_complexity': float(avg_complexity),  # Ensure complexity is saved as float
-        'code_to_comment_ratio': float(code_to_comment_ratio)  # Ensure ratio is saved as float
+        'avg_complexity': float(avg_complexity),  
+        'code_to_comment_ratio': float(code_to_comment_ratio)  
     }
-    
+
     if file_exists:
-        with open(HISTORY_FILE, 'r') as csvfile:
+        # Check if the existing headers match the expected fieldnames
+        with open(HISTORY_FILE, 'r', newline='') as csvfile:
             reader = csv.DictReader(csvfile)
-            last_entry = next(reversed(list(reader)), None)
-        
-        if last_entry:
-            # Compare with the last entry to avoid duplicate entries
-            if all(float(current_entry[key]) == float(last_entry[key]) for key in fieldnames if key != 'timestamp'):
-                print("No changes detected. Skipping history update.")
-                return
+            existing_headers = reader.fieldnames
+            if existing_headers != fieldnames:
+                print("Updating CSV headers...")
+                # Read all existing rows and overwrite the file with new headers
+                rows = list(reader)
+                with open(HISTORY_FILE, 'w', newline='') as csvfile:
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    writer.writeheader()
+                    for row in rows:
+                        # Adjust the rows to fit new headers if needed
+                        writer.writerow({field: row.get(field, '') for field in fieldnames})
     
+    # Append the new data
     with open(HISTORY_FILE, 'a', newline='') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        
         if not file_exists:
-            writer.writeheader()
-        
+            writer.writeheader()  # Write headers if file doesn't exist
         writer.writerow(current_entry)
-    
+
     print("Project history updated.")
 
 
-
 def plot_history():
-    """Plot and save project history as an image."""
-    print("Plotting project history...")
-    dates, files, lines, size, complexities, code_to_comment_ratios = [], [], [], [], [], []
+    """Plot and save a comprehensive project history as an image."""
+    print("Plotting comprehensive project history...")
+    dates, files, lines, size, words, chars, complexities, code_to_comment_ratios = [], [], [], [], [], [], [], []
     
-    # Read the project history CSV file
     with open(HISTORY_FILE, 'r') as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
@@ -278,58 +331,66 @@ def plot_history():
             files.append(int(row['total_files']))
             lines.append(int(row['total_lines']))
             size.append(int(row['total_size']))
-            complexities.append(float(row.get('avg_complexity', 0)))  # Ensure avg_complexity is read as float
-            code_to_comment_ratios.append(float(row.get('code_to_comment_ratio', 0)))  # Ensure ratio is read as float
+            words.append(int(row['total_words']))
+            chars.append(int(row['total_chars']))
+            complexities.append(float(row.get('avg_complexity', 0)))
+            code_to_comment_ratios.append(float(row.get('code_to_comment_ratio', 0)))
     
-    # Create subplots for files, lines, size, complexity, and code-to-comment ratio
-    fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(5, 1, figsize=(12, 20))
+    fig, axs = plt.subplots(3, 2, figsize=(15, 20))
     
-    # Plot total files over time (separate plot)
-    ax1.plot(dates, files, label='Total Files', color='purple')
-    ax1.set_xlabel('Date')
-    ax1.set_ylabel('Files')
-    ax1.set_title('Total Files Over Time')
-    ax1.legend()
-    ax1.grid(True)
-    
-    # Plot total lines over time
+    # Total Files and Lines
+    axs[0, 0].plot(dates, files, label='Total Files', color='purple')
+    axs[0, 0].set_ylabel('Files')
+    axs[0, 0].set_title('Total Files Over Time')
+    ax2 = axs[0, 0].twinx()
     ax2.plot(dates, lines, label='Total Lines', color='orange')
-    ax2.set_xlabel('Date')
     ax2.set_ylabel('Lines')
-    ax2.set_title('Total Lines Over Time')
-    ax2.legend()
-    ax2.grid(True)
+    axs[0, 0].legend(loc='upper left')
+    ax2.legend(loc='upper right')
     
-    # Plot project size over time
-    ax3.plot(dates, size, label='Total Size', color='green')
-    ax3.set_xlabel('Date')
-    ax3.set_ylabel('Size (bytes)')
-    ax3.set_title('Project Size Over Time')
-    ax3.legend()
-    ax3.grid(True)
-
-    # Plot average complexity over time
-    ax4.plot(dates, complexities, label='Average Complexity', color='red')
-    ax4.set_xlabel('Date')
-    ax4.set_ylabel('Complexity')
-    ax4.set_title('Average Complexity Over Time')
-    ax4.legend()
-    ax4.grid(True)
-
-    # Plot code-to-comment ratio over time
-    ax5.plot(dates, code_to_comment_ratios, label='Code to Comment Ratio', color='blue')
-    ax5.set_xlabel('Date')
-    ax5.set_ylabel('Ratio')
-    ax5.set_title('Code to Comment Ratio Over Time')
-    ax5.legend()
-    ax5.grid(True)
+    # Project Size
+    axs[0, 1].plot(dates, [s / 1024 for s in size], label='Total Size (KB)', color='green')
+    axs[0, 1].set_ylabel('Size (KB)')
+    axs[0, 1].set_title('Project Size Over Time')
+    axs[0, 1].legend()
+    
+    # Words and Characters
+    axs[1, 0].plot(dates, words, label='Total Words', color='blue')
+    axs[1, 0].set_ylabel('Words')
+    axs[1, 0].set_title('Total Words Over Time')
+    ax2 = axs[1, 0].twinx()
+    ax2.plot(dates, chars, label='Total Characters', color='red')
+    ax2.set_ylabel('Characters')
+    axs[1, 0].legend(loc='upper left')
+    ax2.legend(loc='upper right')
+    
+    # Average Complexity
+    axs[1, 1].plot(dates, complexities, label='Average Complexity', color='purple')
+    axs[1, 1].set_ylabel('Complexity')
+    axs[1, 1].set_title('Average Complexity Over Time')
+    axs[1, 1].legend()
+    
+    # Code to Comment Ratio
+    axs[2, 0].plot(dates, code_to_comment_ratios, label='Code to Comment Ratio', color='brown')
+    axs[2, 0].set_ylabel('Ratio')
+    axs[2, 0].set_title('Code to Comment Ratio Over Time')
+    axs[2, 0].legend()
+    
+    # Lines per File
+    lines_per_file = [l / f if f > 0 else 0 for l, f in zip(lines, files)]
+    axs[2, 1].plot(dates, lines_per_file, label='Lines per File', color='green')
+    axs[2, 1].set_ylabel('Lines/File')
+    axs[2, 1].set_title('Average Lines per File Over Time')
+    axs[2, 1].legend()
+    
+    for ax in axs.flat:
+        ax.set_xlabel('Date')
+        ax.grid(True)
     
     plt.tight_layout()
     plt.savefig('project_growth.png')
     plt.close()
-    print("Project growth chart saved as 'project_growth.png'")
-
-
+    print("Comprehensive project growth chart saved as 'project_growth.png'")
 
 def calculate_complexity(file_path):
     """Calculate the complexity of a file."""
@@ -340,39 +401,109 @@ def calculate_complexity(file_path):
         branches = len(re.findall(r'\bif\b|\bfor\b|\bwhile\b|\bcase\b', content))
         return 1 + branches
 
-def analyze_dependencies():
-    """Analyze project dependencies from Cargo.toml."""
-    print("Analyzing dependencies from Cargo.toml...")
-    cargo_file = 'Cargo.toml'
-    if os.path.exists(cargo_file):
-        with open(cargo_file, 'r') as file:
-            cargo_data = toml.load(file)
-            return cargo_data.get('dependencies', {})
-    return {}
+def analyze_code_complexity(file_path):
+    """Analyze the complexity of a Python or Rust file."""
+    with open(file_path, 'r') as file:
+        content = file.read()
+    
+    loc = len(content.splitlines())
+    
+    if file_path.endswith('.py'):
+        functions = len(re.findall(r'def\s+\w+\s*\(', content))
+        classes = len(re.findall(r'class\s+\w+', content))
+        complexity = content.count('if') + content.count('for') + content.count('while') + content.count('except') + functions + classes
+    elif file_path.endswith('.rs'):
+        functions = len(re.findall(r'fn\s+\w+\s*\(', content))
+        structs = len(re.findall(r'struct\s+\w+', content))
+        impls = len(re.findall(r'impl\s+', content))
+        complexity = content.count('if') + content.count('for') + content.count('while') + content.count('match') + functions + structs + impls
+    else:
+        return None
+    
+    return {
+        'loc': loc,
+        'functions': functions,
+        'classes_or_structs': classes if file_path.endswith('.py') else structs,
+        'estimated_complexity': complexity
+    }
 
-def detect_license():
-    """Detect the project license."""
-    print("Detecting project license...")
-    license_files = ['LICENSE', 'LICENSE.txt', 'LICENSE.md']
-    for license_file in license_files:
-        if os.path.exists(license_file):
-            with open(license_file, 'r') as file:
-                content = file.read()
-                if 'MIT' in content:
-                    return 'MIT License'
-                elif 'Apache' in content:
-                    return 'Apache License'
-                elif 'GPL' in content:
-                    return 'GPL License'
-    return 'License not detected'
+def generate_dependency_graph(base_dir):
+    """Generate a dependency graph of Python and Rust files in the project."""
+    G = nx.DiGraph()
+    for root, _, files in os.walk(base_dir):
+        for file in files:
+            if file.endswith(('.py', '.rs')):
+                file_path = os.path.join(root, file)
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                        if file.endswith('.py'):
+                            imports = re.findall(r'from\s+(\w+)\s+import', content)
+                            imports += re.findall(r'import\s+(\w+)', content)
+                            for imp in imports:
+                                G.add_edge(file, f"{imp}.py")
+                        elif file.endswith('.rs'):
+                            imports = re.findall(r'use\s+([\w:]+)', content)
+                            for imp in imports:
+                                G.add_edge(file, f"{imp.split(':')[-1]}.rs")
+                except Exception as e:
+                    print(f"Error processing file {file_path}: {e}")
+    return G
 
-def format_size(size_in_bytes):
-    """Format the size in bytes to a human-readable format."""
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-        if size_in_bytes < 1024.0:
-            return f"{size_in_bytes:.2f} {unit}"
-        size_in_bytes /= 1024.0
-    return f"{size_in_bytes:.2f} PB"
+
+def plot_code_metrics(metrics):
+    """Plot various code metrics for Python and Rust files."""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    
+    sizes = [m['loc'] for m in metrics.values()]
+    labels = list(metrics.keys())
+    colors = ['blue' if l.endswith('.py') else 'red' for l in labels]
+    ax1.bar(labels, sizes, color=colors)
+    ax1.set_title('File Sizes (Lines of Code)')
+    ax1.set_xlabel('Files')
+    ax1.set_ylabel('Lines of Code')
+    plt.setp(ax1.get_xticklabels(), rotation=45, ha='right')
+    
+    x = [m['functions'] + m['classes_or_structs'] for m in metrics.values()]
+    y = [m['estimated_complexity'] for m in metrics.values()]
+    ax2.scatter(x, y, c=colors)
+    for i, label in enumerate(labels):
+        ax2.annotate(label, (x[i], y[i]))
+    ax2.set_title('Complexity vs. Functions/Classes/Structs')
+    ax2.set_xlabel('Number of Functions + Classes/Structs')
+    ax2.set_ylabel('Estimated Complexity')
+    
+    ax1.legend(['Python', 'Rust'])
+    
+    plt.tight_layout()
+    plt.savefig('code_metrics.png')
+    plt.close()
+
+def plot_dependency_graph(G):
+    """Plot the dependency graph for Python and Rust files."""
+    plt.figure(figsize=(12, 8))
+    pos = nx.spring_layout(G)
+    node_colors = ['lightblue' if node.endswith('.py') else 'lightcoral' for node in G.nodes()]
+    nx.draw(G, pos, with_labels=True, node_color=node_colors, 
+            node_size=2000, font_size=8, arrows=True)
+    plt.title("Project Dependency Graph (Blue: Python, Red: Rust)")
+    plt.savefig('dependency_graph.png')
+    plt.close()
+
+def analyze_rust_specific_metrics(file_path):
+    """Analyze Rust-specific metrics."""
+    with open(file_path, 'r') as file:
+        content = file.read()
+    
+    unsafe_blocks = len(re.findall(r'unsafe\s*\{', content))
+    lifetimes = len(re.findall(r"'[a-z]+", content))
+    trait_implementations = len(re.findall(r'impl\s+.*for\s+', content))
+    
+    return {
+        'unsafe_blocks': unsafe_blocks,
+        'lifetimes': lifetimes,
+        'trait_implementations': trait_implementations
+    }
 
 def print_stats(stats, totals, code_ratio, todos, complexity, dependencies, license):
     """Print statistics for the analyzed project."""
@@ -401,7 +532,6 @@ def print_stats(stats, totals, code_ratio, todos, complexity, dependencies, lice
     
     print(f"\nDetected License: {license}")
 
-
 def main():
     root_dir = '.'  # Current directory
     
@@ -414,10 +544,8 @@ def main():
     
     stats, totals, todos = analyze_project(root_dir, repo)
     
-    # Calculate code-to-comment ratio
     code_lines, comment_lines, code_ratio = calculate_code_to_comment_ratio(root_dir)
     
-    # Calculate average complexity
     print("Calculating average complexity...")
     complexity_sum = sum(calculate_complexity(os.path.join(root, file))
                          for root, _, files in os.walk(root_dir)
@@ -429,17 +557,28 @@ def main():
     
     print_stats(stats, totals, code_ratio, todos, avg_complexity, dependencies, license)
     
-    # Save history including complexity and code-to-comment ratio
     save_history(stats, totals, avg_complexity, code_ratio)
     plot_history()
-    
-    print("\nProject growth chart saved as 'project_growth.png'")
 
+    # Analyze code complexity and dependencies for files
+    selected_files = [file for file in os.listdir(root_dir) if file.endswith(('.py', '.rs'))]
+    metrics = {}
+    rust_specific_metrics = {}
+    for file in selected_files:
+        if file.endswith(('.py', '.rs')):
+            metrics[file] = analyze_code_complexity(file)
+            if file.endswith('.rs'):
+                rust_specific_metrics[file] = analyze_rust_specific_metrics(file)
+
+    plot_code_metrics(metrics)
+    print("\nCode metrics graph generated: code_metrics.png\n")
+
+    dep_graph = generate_dependency_graph(root_dir)
+    plot_dependency_graph(dep_graph)
+    print("Dependency graph generated: dependency_graph.png\n")
 
 
 if __name__ == "__main__":
     main()
-
-
 
 

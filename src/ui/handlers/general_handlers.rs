@@ -1,9 +1,19 @@
 use crate::ui::WarThunderCamoInstaller;
+use crate::war_thunder_utils;
+use rfd::FileDialog;
+use std::path::PathBuf;
+
 
 // Modify the set_wt_skins_directory function to update the existing directory
 pub fn set_wt_skins_directory(app: &mut WarThunderCamoInstaller) {
-    // Only prompt when the user selects the option
-    if let Some(path) = rfd::FileDialog::new().pick_folder() {
+    let initial_path = war_thunder_utils::find_user_skins_directory()
+        .unwrap_or_else(|| PathBuf::from("/"));  // Default to root if not found
+
+    let dialog = FileDialog::new()
+        .set_directory(&initial_path)
+        .pick_folder();
+
+    if let Some(path) = dialog {
         app.set_wt_skins_directory(&path);
         app.error_message = Some(format!("Skins directory set to: {}", path.display()));
     } else {

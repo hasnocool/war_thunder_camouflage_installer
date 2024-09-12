@@ -1,5 +1,3 @@
-// Removed the unused variable 'current_camo' and associated unused functions
-
 use eframe::egui;
 use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
@@ -15,7 +13,6 @@ use crate::ui::handlers::utility_handlers;
 use crate::ui::handlers::file_handlers;
 
 use crate::tags::TagCollection;
-
 
 type ImageReceiver = Arc<Mutex<Receiver<(String, Vec<u8>)>>>;
 
@@ -47,6 +44,7 @@ pub struct WarThunderCamoInstaller {
     pub tag_filtering_enabled: bool,
     pub show_detailed_view: bool,
     pub current_page: usize,
+    pub wt_dir_not_found: bool,  // New field
 }
 
 impl WarThunderCamoInstaller {
@@ -82,6 +80,7 @@ impl WarThunderCamoInstaller {
             tag_filtering_enabled: true,
             show_detailed_view: false,
             current_page: 0,
+            wt_dir_not_found: true,  // Initialize to true
         }
     }
 
@@ -97,6 +96,7 @@ impl WarThunderCamoInstaller {
 
     pub fn set_wt_skins_directory(&mut self, path: &Path) {
         self.wt_skins_dir = Some(path.to_path_buf());
+        self.wt_dir_not_found = false;
     }
 
     pub fn initialize_database(&mut self, db_path: &Path) -> Result<(), InstallerError> {
@@ -174,6 +174,25 @@ impl WarThunderCamoInstaller {
         if self.use_custom_structure {
             file_handlers::apply_custom_structure(self);
         }
+
+        if self.wt_dir_not_found {
+            self.show_wt_dir_not_found_popup(ctx);
+        }
+    }
+
+    fn show_wt_dir_not_found_popup(&mut self, ctx: &egui::Context) {
+        egui::Window::new("War Thunder Directory Not Found")
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.label("The War Thunder directory could not be found automatically.");
+                ui.label("Please select the War Thunder UserSkins directory manually.");
+                if ui.button("Select Directory").clicked() {
+                    if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                        self.set_wt_skins_directory(&path);
+                    }
+                }
+            });
     }
 }
 
@@ -187,3 +206,5 @@ impl eframe::App for WarThunderCamoInstaller {
         }
     }
 }
+
+
