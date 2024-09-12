@@ -1,14 +1,13 @@
 // src/ui/components.rs
-
 use eframe::egui;
 use super::app::WarThunderCamoInstaller;
-use super::handlers;
-use super::database_handlers;
-use super::navigation_handlers;
-use super::file_handlers;
-use super::image_handlers;
-use crate::ui::handlers::set_wt_skins_directory;
-use crate::ui::handlers::change_database_file;
+use crate::ui::handlers::database_handlers;
+use crate::ui::handlers::navigation_handlers;
+use crate::ui::handlers::file_handlers;
+use crate::ui::handlers::image_handlers;
+use crate::ui::handlers::general_handlers;
+use crate::ui::handlers::general_handlers::set_wt_skins_directory;
+use crate::ui::handlers::general_handlers::change_database_file;
 
 
 pub fn menu_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
@@ -69,7 +68,7 @@ pub fn search_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         let search_bar = ui.text_edit_singleline(&mut app.search_query);
         if ui.button("🔍").clicked() || (search_bar.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
-            handlers::perform_search(app);
+            general_handlers::perform_search(app);
         }
     });
 }
@@ -82,7 +81,7 @@ pub fn tag_filters(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
             if app.tag_filtering_enabled {
                 app.selected_tags.clear();  // Reset selected tags when enabling filtering
             }
-            handlers::perform_search(app);
+            general_handlers::perform_search(app);
         }
     });
 
@@ -104,13 +103,13 @@ pub fn tag_filters(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
             }
 
             if tags_changed {
-                handlers::perform_search(app);
+                general_handlers::perform_search(app);
             }
         });
     }
 
     if ui.button("Apply Filter").clicked() {
-        handlers::perform_search(app);
+        general_handlers::perform_search(app);
     }
 }
 
@@ -161,7 +160,7 @@ pub fn custom_tags_input(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
         ui.label("Custom Tags:");
         let input = ui.text_edit_singleline(&mut app.custom_tags_input);
         if ui.button("Add Tags").clicked() || (input.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
-            handlers::add_custom_tags(app);
+            general_handlers::add_custom_tags(app);
         }
     });
 }
@@ -176,7 +175,7 @@ pub fn show_image_grid_for_detailed_view(ui: &mut egui::Ui, app: &WarThunderCamo
         }
 
         // Display the first image as the avatar in original size
-        if let Some(avatar_url) = current_camo.image_urls.get(0) {
+        if let Some(avatar_url) = current_camo.image_urls.first() {
             if let Some(texture_handle) = images.get(avatar_url) {
                 let size = texture_handle.size_vec2();
                 ui.image(texture_handle.id(), size);

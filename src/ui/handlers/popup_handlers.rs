@@ -1,6 +1,6 @@
 use eframe::egui;
 use std::path::PathBuf;
-use super::app::WarThunderCamoInstaller;
+use crate::ui::WarThunderCamoInstaller;
 use crate::file_operations;
 
 // Function to show the custom structure popup

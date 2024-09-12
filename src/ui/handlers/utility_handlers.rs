@@ -1,4 +1,4 @@
-use super::app::WarThunderCamoInstaller;
+use crate::ui::WarThunderCamoInstaller;
 use super::database_handlers;
 
 // Helper function to update the application state

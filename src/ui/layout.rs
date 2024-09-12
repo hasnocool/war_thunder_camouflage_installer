@@ -3,7 +3,7 @@
 use eframe::egui;
 use super::app::WarThunderCamoInstaller;
 use super::components;
-use super::popup_handlers;
+use crate::ui::handlers::popup_handlers;
 
 pub fn build_ui(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
     top_panel(app, ctx);
@@ -144,7 +144,7 @@ fn show_image_grid_for_main_view(ui: &mut egui::Ui, app: &WarThunderCamoInstalle
         }
 
         // Display the first image as the avatar
-        if let Some(avatar_url) = current_camo.image_urls.get(0) {
+        if let Some(avatar_url) = current_camo.image_urls.first() {
             if let Some(texture_handle) = images.get(avatar_url) {
                 let size = texture_handle.size_vec2();
                 ui.image(texture_handle.id(), size);

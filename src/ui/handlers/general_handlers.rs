@@ -1,4 +1,4 @@
-use super::app::WarThunderCamoInstaller;
+use crate::ui::WarThunderCamoInstaller;
 
 // Modify the set_wt_skins_directory function to update the existing directory
 pub fn set_wt_skins_directory(app: &mut WarThunderCamoInstaller) {

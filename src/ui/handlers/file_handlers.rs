@@ -3,7 +3,7 @@ use reqwest;
 use zip;
 use std::fs::{self, File};
 use std::io::{self, Cursor};
-use super::app::WarThunderCamoInstaller;
+use crate::ui::WarThunderCamoInstaller;
 use crate::path_utils;
 
 // Function to install a skin from a given ZIP URL

@@ -1,7 +1,7 @@
 use eframe::egui;
 use std::sync::mpsc;
 use rayon::prelude::*;
-use super::app::WarThunderCamoInstaller;
+use crate::ui::WarThunderCamoInstaller;
 use crate::image_utils;
 use image::GenericImageView; // Add this import
 

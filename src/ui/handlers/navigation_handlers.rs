@@ -1,4 +1,4 @@
-use super::app::WarThunderCamoInstaller;
+use crate::ui::WarThunderCamoInstaller;
 
 pub fn show_next_camo(app: &mut WarThunderCamoInstaller) {
     let total_camos = if app.search_mode {

@@ -1,4 +1,4 @@
-use super::app::WarThunderCamoInstaller;
+use crate::ui::WarThunderCamoInstaller;
 use crate::database;
 
 // Function to update the total number of camouflages

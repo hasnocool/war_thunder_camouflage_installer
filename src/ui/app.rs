@@ -10,12 +10,12 @@ use std::collections::{HashMap, VecDeque};
 use crate::data::{Camouflage, InstallerError};
 use crate::database;
 use super::layout;
-use super::image_handlers;
-use super::utility_handlers;
-use super::file_handlers;
+use crate::ui::handlers::image_handlers;
+use crate::ui::handlers::utility_handlers;
+use crate::ui::handlers::file_handlers;
 
 use crate::tags::TagCollection;
-use serde_json;
+
 
 type ImageReceiver = Arc<Mutex<Receiver<(String, Vec<u8>)>>>;
 
@@ -110,7 +110,7 @@ impl WarThunderCamoInstaller {
         self.search_results = all_camouflages.clone();
         self.total_camos = all_camouflages.len();
     
-        if let Some(first_camo) = all_camouflages.get(0) {
+        if let Some(first_camo) = all_camouflages.first() {
             self.set_current_camo(0, first_camo.clone());
         }
     
