@@ -5,6 +5,8 @@ import json
 from collections import defaultdict, Counter
 from datetime import datetime
 import matplotlib.pyplot as plt
+from matplotlib import cycler
+import matplotlib.colors as mcolors
 from git import Repo
 import toml
 import magic
@@ -325,6 +327,52 @@ def ensure_dir_exists(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
         print(f"Created directory: {directory}")
+
+
+def set_monokai_theme():
+    """Set up Monokai theme for matplotlib."""
+    monokai_colors = {
+        'background': '#272822',
+        'text': '#F8F8F2',
+        'purple': '#AE81FF',
+        'orange': '#FD971F',
+        'green': '#A6E22E',
+        'red': '#F92672',
+        'blue': '#66D9EF',
+        'yellow': '#E6DB74',
+        'comments': '#75715E'
+    }
+   
+    color_list = [monokai_colors['purple'], monokai_colors['orange'],
+                  monokai_colors['green'], monokai_colors['red'],
+                  monokai_colors['blue'], monokai_colors['yellow']]
+    
+    plt.rcParams.update({
+        'figure.facecolor': monokai_colors['background'],
+        'axes.facecolor': monokai_colors['background'],
+        'text.color': monokai_colors['text'],
+        'axes.labelcolor': monokai_colors['text'],
+        'xtick.color': monokai_colors['text'],
+        'ytick.color': monokai_colors['text'],
+        'grid.color': monokai_colors['comments'],
+        'grid.linestyle': '--',
+        'axes.grid': True,
+        'savefig.facecolor': monokai_colors['background'],
+        'figure.edgecolor': 'none',
+        'axes.edgecolor': monokai_colors['text'],
+        'legend.facecolor': monokai_colors['background'],
+        'legend.edgecolor': monokai_colors['comments'],
+        'legend.labelcolor': monokai_colors['text'],
+    })
+    
+    # Set the color cycle explicitly
+    plt.rcParams['axes.prop_cycle'] = plt.cycler(color=color_list)
+
+    # Return the color list for manual color assignment if needed
+    return color_list
+
+# Call this function before generating any plots
+monokai_colors = set_monokai_theme()
 
 def plot_history():
     """Plot and save a comprehensive project history as an image."""

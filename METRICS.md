@@ -2,19 +2,19 @@
 
 ## Overview
 - **Total Files:** 31
-- **Total Lines:** 3531
-- **Total Words:** 12051
-- **Total Characters:** 128516
-- **Total Size:** 129.04 KB
-- **Code to Comment Ratio:** 19.88
-- **Average Complexity:** 12.77
+- **Total Lines:** 3579
+- **Total Words:** 12162
+- **Total Characters:** 130200
+- **Total Size:** 130.74 KB
+- **Code to Comment Ratio:** 19.71
+- **Average Complexity:** 12.87
 - **Detected License:** License file not found
 
 ## File Type Statistics
 
 | Extension | Files | Lines | Words | Characters | Size |
 |-----------|-------|-------|-------|------------|------|
-| .py | 4 | 1595 | 5360 | 59425 | 59.59 KB |
+| .py | 4 | 1643 | 5471 | 61109 | 61.28 KB |
 | .rs | 21 | 1587 | 4463 | 54403 | 54.67 KB |
 | .md | 4 | 276 | 1955 | 12779 | 12.85 KB |
 | .log | 1 | 45 | 175 | 1273 | 1.29 KB |
@@ -50,11 +50,11 @@
 - .\build_script.py:422: "TODO.md": "ToDo List",
 - .\build_script.py:441: subprocess.run(["git", "add", "README.md", "TODO.md", "CHANGE.log"], check=True)
 - .\print_project.py:15: "README.md", "TAGS.json", "TODO.md", "TREE.md",
-- .\project_metrics.py:188: "TODO.md", "TREE.md",
-- .\project_metrics.py:222: """Find TODO and FIXME comments in files."""
-- .\project_metrics.py:227: if 'TODO' in line or 'FIXME' in line:
-- .\project_metrics.py:548: print("\nTODOs and FIXMEs:")
-- .\project_metrics.py:593: ## TODOs and FIXMEs
+- .\project_metrics.py:190: "TODO.md", "TREE.md",
+- .\project_metrics.py:224: """Find TODO and FIXME comments in files."""
+- .\project_metrics.py:229: if 'TODO' in line or 'FIXME' in line:
+- .\project_metrics.py:596: print("\nTODOs and FIXMEs:")
+- .\project_metrics.py:641: ## TODOs and FIXMEs
 - .\TODO.md:1: # TODO: Feature Suggestions for App Enhancement
 
 ## Visualizations
