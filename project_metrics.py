@@ -15,11 +15,14 @@ import networkx as nx
 import subprocess
 import pyperclip
 import argparse
+import pathspec  # Importing pathspec to handle .gitignore patterns
 
 # File for storing historical data
 HISTORY_FILE = 'project_metrics_history.csv'
 CACHE_FILE = 'project_metrics_cache.json'
 DEFAULT_IMAGE_DIR = 'project_metrics_images'  # New constant for default image directory
+
+EXCLUDE_PATTERNS = ['*.pack', '*.sample', '*.idx', '*.jpg', '*.png', '*.rev']
 
 class AtomicCounter:
     """Thread-safe counter for atomic operations."""
@@ -129,6 +132,25 @@ def analyze_chunk(chunk, git_repo):
     
     return local_stats, local_totals, local_todos
 
+def load_gitignore_patterns(root_dir):
+    """Load .gitignore patterns from the root directory."""
+    gitignore_path = os.path.join(root_dir, '.gitignore')
+    patterns = EXCLUDE_PATTERNS[:]  # Start with the default exclude patterns
+
+    if os.path.exists(gitignore_path):
+        with open(gitignore_path, 'r') as f:
+            patterns.extend(f.read().splitlines())
+    
+    spec = pathspec.PathSpec.from_lines('gitwildmatch', patterns)
+    return spec
+
+def is_ignored(path, spec, root_dir):
+    """Check if a given path should be ignored based on the .gitignore spec."""
+    if spec is None:
+        return False
+    # Get the path relative to the root directory
+    rel_path = os.path.relpath(path, root_dir)
+    return spec.match_file(rel_path)
 
 def detect_license():
     """Detect the project license by examining the LICENSE file."""
@@ -162,7 +184,6 @@ def format_size(size_in_bytes):
         size_in_bytes /= 1024.0
     return f"{size_in_bytes:.2f} PB"
 
-
 def analyze_dependencies():
     """Analyze project dependencies from Cargo.toml."""
     print("Analyzing dependencies from Cargo.toml...")
@@ -179,28 +200,22 @@ def analyze_dependencies():
         print("Cargo.toml not found.")
         return {}
 
-
 def analyze_project(root_dir, git_repo=None):
-    """Analyze the entire project directory."""
+    """Analyze the entire project directory, excluding files that match the .gitignore patterns."""
     print(f"Analyzing project in directory: {root_dir}")
     
-    allowed_files_and_dirs = [
-        "build_script.py", "Cargo.toml", "CHANGE.log", "check.py", 
-        "print_project.py", "project_metrics.py", "README.MACOSX.md", "README.md", 
-        "TODO.md", "TREE.md",
-        "src/data.rs", "src/database.rs", "src/experimental.rs", "src/file_operations.rs", 
-        "src/image_utils.rs", "src/main.rs", "src/path_utils.rs", "src/tags.rs",
-        "src/ui/app.rs", "src/ui/components.rs", "src/ui/handlers/database_handlers.rs", 
-        "src/ui/handlers/file_handlers.rs", "src/ui/handlers/general_handlers.rs", 
-        "src/ui/handlers/image_handlers.rs", "src/ui/handlers/mod.rs", 
-        "src/ui/handlers/navigation_handlers.rs", "src/ui/handlers/popup_handlers.rs", 
-        "src/ui/handlers/utility_handlers.rs", "src/ui/layout.rs", "src/ui/mod.rs", "src/war_thunder_utils.rs"
-    ]
+    # Load .gitignore patterns
+    spec = load_gitignore_patterns(root_dir)
     
-    file_list = [
-        os.path.join(root_dir, f) if not f.startswith('src/') else os.path.join(root_dir, f.replace('/', os.sep))
-        for f in allowed_files_and_dirs
-    ]
+    # Collect all files, excluding those that match .gitignore patterns
+    file_list = []
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        # Exclude directories that match .gitignore
+        dirnames[:] = [d for d in dirnames if not is_ignored(os.path.join(dirpath, d), spec, root_dir)]
+        for filename in filenames:
+            filepath = os.path.join(dirpath, filename)
+            if not is_ignored(filepath, spec, root_dir):
+                file_list.append(filepath)
     
     print(f"Total number of files found: {len(file_list)}")
     
@@ -255,8 +270,19 @@ def calculate_code_to_comment_ratio(root_dir):
                     elif line:
                         code_lines.increment()
     
-    file_list = [os.path.join(dirpath, f) for dirpath, _, filenames in os.walk(root_dir) 
-                 for f in filenames if f.endswith(('.rs', '.py'))]
+    # Load .gitignore patterns
+    spec = load_gitignore_patterns(root_dir)
+    
+    # Collect all files, excluding those that match .gitignore patterns
+    file_list = []
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        # Exclude directories that match .gitignore
+        dirnames[:] = [d for d in dirnames if not is_ignored(os.path.join(dirpath, d), spec, root_dir)]
+        for filename in filenames:
+            filepath = os.path.join(dirpath, filename)
+            if not is_ignored(filepath, spec, root_dir):
+                if filepath.endswith(('.rs', '.py')):
+                    file_list.append(filepath)
     
     for file_path in file_list:
         process_file(file_path)
@@ -321,13 +347,11 @@ def save_history(stats, totals, avg_complexity, code_to_comment_ratio):
 
     print("Project history updated.")
 
-
 def ensure_dir_exists(directory):
     """Ensure that a directory exists, creating it if necessary."""
     if not os.path.exists(directory):
         os.makedirs(directory)
         print(f"Created directory: {directory}")
-
 
 def set_monokai_theme():
     """Set up Monokai theme for matplotlib."""
@@ -375,7 +399,7 @@ def set_monokai_theme():
 monokai_colors = set_monokai_theme()
 
 def plot_history():
-    """Plot and save a comprehensive project history as an image."""
+    """Plot and save a comprehensive project history as a wider image."""
     print("Plotting comprehensive project history...")
     dates, files, lines, size, words, chars, complexities, code_to_comment_ratios = [], [], [], [], [], [], [], []
     
@@ -391,7 +415,7 @@ def plot_history():
             complexities.append(float(row.get('avg_complexity', 0)))
             code_to_comment_ratios.append(float(row.get('code_to_comment_ratio', 0)))
     
-    fig, axs = plt.subplots(3, 2, figsize=(15, 20))
+    fig, axs = plt.subplots(3, 2, figsize=(20, 10))  # Increased width for a wider layout
     
     # Total Files and Lines
     axs[0, 0].plot(dates, files, label='Total Files', color='purple')
@@ -448,6 +472,7 @@ def plot_history():
     plt.close()
     print(f"Comprehensive project growth chart saved as '{os.path.join(DEFAULT_IMAGE_DIR, 'project_growth.png')}'")
 
+
 def calculate_complexity(file_path):
     """Calculate the complexity of a file."""
     if is_binary(file_path):
@@ -491,9 +516,15 @@ def analyze_code_complexity(file_path):
 
 def generate_dependency_graph(base_dir):
     """Generate a dependency graph of Python and Rust files in the project."""
+    spec = load_gitignore_patterns(base_dir)
     G = nx.DiGraph()
-    for root, _, files in os.walk(base_dir):
+    for root, dirnames, files in os.walk(base_dir):
+        # Exclude directories that match .gitignore
+        dirnames[:] = [d for d in dirnames if not is_ignored(os.path.join(root, d), spec, base_dir)]
         for file in files:
+            filepath = os.path.join(root, file)
+            if is_ignored(filepath, spec, base_dir):
+                continue
             if file.endswith(('.py', '.rs')):
                 file_path = os.path.join(root, file)
                 try:
@@ -512,44 +543,86 @@ def generate_dependency_graph(base_dir):
                     print(f"Error processing file {file_path}: {e}")
     return G
 
+# Define Monokai colors
+monokai_colors = {
+    'background': '#272822',
+    'text': '#F8F8F2',
+    'purple': '#AE81FF',
+    'orange': '#FD971F',
+    'green': '#A6E22E',
+    'red': '#F92672',
+    'blue': '#66D9EF',
+    'yellow': '#E6DB74',
+    'comments': '#75715E'
+}
+
+def set_monokai_theme():
+    """Apply Monokai theme to matplotlib."""
+    plt.rcParams.update({
+        'figure.facecolor': monokai_colors['background'],
+        'axes.facecolor': monokai_colors['background'],
+        'axes.edgecolor': monokai_colors['text'],
+        'text.color': monokai_colors['text'],
+        'axes.labelcolor': monokai_colors['text'],
+        'xtick.color': monokai_colors['text'],
+        'ytick.color': monokai_colors['text'],
+        'grid.color': monokai_colors['comments'],
+        'grid.linestyle': '--',
+        'legend.facecolor': monokai_colors['background'],
+        'legend.edgecolor': monokai_colors['comments'],
+        'legend.labelcolor': monokai_colors['text'],
+        'savefig.facecolor': monokai_colors['background'],
+    })
+
+    # Set a color cycle for different plot elements
+    plt.rcParams['axes.prop_cycle'] = plt.cycler(color=[monokai_colors['purple'], monokai_colors['orange'],
+                                                        monokai_colors['green'], monokai_colors['red'],
+                                                        monokai_colors['blue'], monokai_colors['yellow']])
+
+set_monokai_theme()
 
 def plot_code_metrics(metrics):
-    """Plot various code metrics for Python, Rust, TOML, and other files."""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    """Plot various code metrics for Python, Rust, TOML, and other files with Monokai theme."""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))  # Increased width for a wider layout
 
     sizes = [m['loc'] for m in metrics.values()]
     labels = list(metrics.keys())
-    colors = ['blue' if l.endswith('.py') else 'red' if l.endswith('.rs') else 'green' for l in labels]  # Different colors for .py, .rs, and others
+    colors = [monokai_colors['blue'] if l.endswith('.py') else monokai_colors['red'] if l.endswith('.rs') else monokai_colors['green'] for l in labels]
+    
+    # Bar plot for file sizes
     ax1.bar(labels, sizes, color=colors)
-    ax1.set_title('File Sizes (Lines of Code)')
-    ax1.set_xlabel('Files')
-    ax1.set_ylabel('Lines of Code')
-    plt.setp(ax1.get_xticklabels(), rotation=45, ha='right')
+    ax1.set_title('File Sizes (Lines of Code)', color=monokai_colors['text'])
+    ax1.set_xlabel('Files', color=monokai_colors['text'])
+    ax1.set_ylabel('Lines of Code', color=monokai_colors['text'])
+    plt.setp(ax1.get_xticklabels(), rotation=45, ha='right', color=monokai_colors['text'])
 
+    # Scatter plot for complexity vs functions/classes/structs
     x = [m['functions'] + m['classes_or_structs'] for m in metrics.values()]
     y = [m['estimated_complexity'] for m in metrics.values()]
     ax2.scatter(x, y, c=colors)
     for i, label in enumerate(labels):
-        ax2.annotate(label, (x[i], y[i]))
-    ax2.set_title('Complexity vs. Functions/Classes/Structs')
-    ax2.set_xlabel('Number of Functions + Classes/Structs')
-    ax2.set_ylabel('Estimated Complexity')
+        ax2.annotate(label, (x[i], y[i]), color=monokai_colors['text'])
+    ax2.set_title('Complexity vs. Functions/Classes/Structs', color=monokai_colors['text'])
+    ax2.set_xlabel('Number of Functions + Classes/Structs', color=monokai_colors['text'])
+    ax2.set_ylabel('Estimated Complexity', color=monokai_colors['text'])
 
+    # Apply tight layout and save figure
     plt.tight_layout()
     ensure_dir_exists(DEFAULT_IMAGE_DIR)
     plt.savefig(os.path.join(DEFAULT_IMAGE_DIR, 'code_metrics.png'))
     plt.close()
     print(f"Code metrics graph generated: {os.path.join(DEFAULT_IMAGE_DIR, 'code_metrics.png')}")
 
-
 def plot_dependency_graph(G):
-    """Plot the dependency graph for Python and Rust files."""
-    plt.figure(figsize=(12, 8))
+    """Plot the dependency graph for Python and Rust files with Monokai theme."""
+    plt.figure(figsize=(20, 12))  # Increased width for a wider layout
     pos = nx.spring_layout(G)
-    node_colors = ['lightblue' if node.endswith('.py') else 'lightcoral' for node in G.nodes()]
+    node_colors = [monokai_colors['blue'] if node.endswith('.py') else monokai_colors['red'] for node in G.nodes()]
+    
     nx.draw(G, pos, with_labels=True, node_color=node_colors, 
-            node_size=2000, font_size=8, arrows=True)
-    plt.title("Project Dependency Graph (Blue: Python, Red: Rust)")
+            node_size=2000, font_size=8, arrows=True, edge_color=monokai_colors['comments'])
+    
+    plt.title("Project Dependency Graph (Blue: Python, Red: Rust)", color=monokai_colors['text'])
     ensure_dir_exists(DEFAULT_IMAGE_DIR)
     plt.savefig(os.path.join(DEFAULT_IMAGE_DIR, 'dependency_graph.png'))
     plt.close()
@@ -576,7 +649,6 @@ def analyze_rust_specific_metrics(file_path):
         'lifetimes': lifetimes,
         'trait_implementations': trait_implementations
     }
-
 
 def print_stats(stats, totals, code_ratio, todos, complexity, dependencies, license):
     """Print statistics for the analyzed project."""
@@ -648,20 +720,24 @@ def generate_metrics_md(stats, totals, code_ratio, todos, avg_complexity, depend
 ## Visualizations
 
 ### Project Growth
-![Project Growth](project_metrics_images/project_growth.png)
+![Project Growth](../project_metrics_images/project_growth.png)
 
 ### Code Metrics
-![Code Metrics](project_metrics_images/code_metrics.png)
+![Code Metrics](../project_metrics_images/code_metrics.png)
 
 ### Dependency Graph
-![Dependency Graph](project_metrics_images/dependency_graph.png)
+![Dependency Graph](../project_metrics_images/dependency_graph.png)
 """
 
-    with open('docs\METRICS.md', 'w') as md_file:
+    # Ensure the 'docs' directory exists
+    ensure_dir_exists('docs')
+
+    with open('docs/METRICS.md', 'w') as md_file:
         md_file.write(md_content)
     
-    print("docs\METRICS.md file generated successfully.")
+    print("docs/METRICS.md file generated successfully.")
 
+# In the main function, the root directory is analyzed, and the .gitignore is loaded
 def main():
     root_dir = '.'  # Current directory
 
@@ -678,8 +754,9 @@ def main():
 
     print("Calculating average complexity...")
     complexity_sum = sum(calculate_complexity(os.path.join(root, file))
-                         for root, _, files in os.walk(root_dir)
-                         for file in files if file.endswith(('.rs', '.py', '.toml')))
+                         for root, dirnames, files in os.walk(root_dir)
+                         for file in files if file.endswith(('.rs', '.py', '.toml'))
+                         and not is_ignored(os.path.join(root, file), load_gitignore_patterns(root_dir), root_dir))
     avg_complexity = complexity_sum / totals['files'] if totals['files'] > 0 else 0
 
     dependencies = analyze_dependencies()
@@ -691,9 +768,12 @@ def main():
     plot_history()
 
     # Analyze code complexity and dependencies for files
+    spec = load_gitignore_patterns(root_dir)
     selected_files = []
-    for root, _, files in os.walk(root_dir):
-        selected_files.extend([os.path.join(root, f) for f in files if f.endswith(('.py', '.rs', '.toml'))])
+    for root, dirnames, files in os.walk(root_dir):
+        # Exclude directories that match .gitignore
+        dirnames[:] = [d for d in dirnames if not is_ignored(os.path.join(root, d), spec, root_dir)]
+        selected_files.extend([os.path.join(root, f) for f in files if f.endswith(('.py', '.rs', '.toml')) and not is_ignored(os.path.join(root, f), spec, root_dir)])
 
     metrics = {}
     rust_specific_metrics = {}

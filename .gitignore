@@ -14,3 +14,9 @@ config.ini
 **/*.db
 *.db
 build_script_v1.py
+*.pack
+*.sample
+*.idx
+*.jpg
+*.png
+*.rev
