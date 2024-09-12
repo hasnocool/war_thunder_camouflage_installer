@@ -118,7 +118,9 @@ fn central_panel(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
             components::camouflage_details(app, ui);
             ui.add_space(20.0);
             ui.heading("Images");
-            show_image_grid_for_main_view(ui, app);
+
+            // Use the correct function to display images in the main view
+            components::show_image_grid_for_main_view(ui, app);
 
             ui.horizontal(|ui| {
                 if let Some(current_camo) = &app.current_camo {
@@ -134,46 +136,9 @@ fn central_panel(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
     });
 }
 
-// Function to show the image grid in the main view
-fn show_image_grid_for_main_view(ui: &mut egui::Ui, app: &WarThunderCamoInstaller) {
-    if let Some(current_camo) = &app.current_camo {
-        let images = app.images.lock().unwrap();
-        if images.is_empty() {
-            ui.label("No images to display.");
-            return;
-        }
 
-        // Display the first image as the avatar
-        if let Some(avatar_url) = current_camo.image_urls.first() {
-            if let Some(texture_handle) = images.get(avatar_url) {
-                let size = texture_handle.size_vec2();
-                ui.image(texture_handle.id(), size);
-            }
-        }
 
-        let available_width = ui.available_width();
-        let image_width = 150.0;
-        let num_columns = (available_width / image_width).floor() as usize;
 
-        // Display the rest of the images (skip the avatar)
-        egui::Grid::new("image_grid_for_main_view")
-            .num_columns(num_columns)
-            .spacing([10.0, 10.0])
-            .striped(true)
-            .show(ui, |ui| {
-                for url in &current_camo.image_urls[1..] {
-                    if let Some(texture_handle) = images.get(url) {
-                        let size = texture_handle.size_vec2();
-                        let aspect_ratio = size.x / size.y;
-                        let scaled_height = image_width / aspect_ratio;
-                        ui.image(texture_handle.id(), [image_width, scaled_height]);
-                    }
-                }
-            });
-    } else {
-        ui.label("No camouflage selected.");
-    }
-}
 
 fn bottom_panel(app: &mut WarThunderCamoInstaller, ctx: &egui::Context) {
     egui::TopBottomPanel::bottom("footer_panel").min_height(100.0).show(ctx, |ui| {

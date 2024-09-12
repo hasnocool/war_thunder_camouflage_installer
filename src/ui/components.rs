@@ -1,4 +1,3 @@
-// src/ui/components.rs
 use eframe::egui;
 use super::app::WarThunderCamoInstaller;
 use crate::ui::handlers::database_handlers;
@@ -8,8 +7,9 @@ use crate::ui::handlers::image_handlers;
 use crate::ui::handlers::general_handlers;
 use crate::ui::handlers::general_handlers::set_wt_skins_directory;
 use crate::ui::handlers::general_handlers::change_database_file;
+use std::collections::HashMap;
 
-
+// Menu bar function
 pub fn menu_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     egui::menu::bar(ui, |ui| {
         // File Menu
@@ -74,8 +74,7 @@ pub fn menu_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     });
 }
 
-
-
+// Search bar function
 pub fn search_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         let search_bar = ui.text_edit_singleline(&mut app.search_query);
@@ -85,13 +84,13 @@ pub fn search_bar(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     });
 }
 
-// Replace the existing tag_filters function with this:
+// Tag filters function
 pub fn tag_filters(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         ui.label("Filter by tags:");
         if ui.checkbox(&mut app.tag_filtering_enabled, "Enable Tag Filtering").changed() {
             if app.tag_filtering_enabled {
-                app.selected_tags.clear();  // Reset selected tags when enabling filtering
+                app.selected_tags.clear();
             }
             general_handlers::perform_search(app);
         }
@@ -125,6 +124,7 @@ pub fn tag_filters(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     }
 }
 
+// Camouflage details function
 pub fn camouflage_details(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     if let Some(camo) = &app.current_camo {
         ui.heading(&camo.vehicle_name);
@@ -135,7 +135,6 @@ pub fn camouflage_details(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) 
         ui.label(format!("Tags: {}", camo.tags.join(", ")));
         ui.label(format!("Downloads: {}", camo.num_downloads));
         ui.label(format!("Likes: {}", camo.num_likes));
-        // New line to show the current index of the camouflage
         ui.label(format!("Camouflage {}/{}", app.current_index + 1, app.total_camos));
     } else {
         ui.label("No camouflage selected");
@@ -145,12 +144,12 @@ pub fn camouflage_details(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) 
     }
 }
 
+// Pagination function
 pub fn pagination(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         if ui.button("Previous").clicked() {
             navigation_handlers::show_previous_camo(app);
         }
-        // Display current index and total camos
         ui.label(format!("{}/{}", app.current_index + 1, app.total_camos));
         if ui.button("Next").clicked() {
             navigation_handlers::show_next_camo(app);
@@ -158,6 +157,7 @@ pub fn pagination(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     });
 }
 
+// Install button function
 pub fn install_button(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     if let Some(camo) = &app.current_camo {
         let zip_file_url = camo.zip_file_url.clone();
@@ -167,6 +167,7 @@ pub fn install_button(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     }
 }
 
+// Custom tags input function
 pub fn custom_tags_input(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         ui.label("Custom Tags:");
@@ -177,7 +178,37 @@ pub fn custom_tags_input(app: &mut WarThunderCamoInstaller, ui: &mut egui::Ui) {
     });
 }
 
+// Responsive image grid component
+pub fn responsive_image_grid(
+    ui: &mut egui::Ui,
+    images: &HashMap<String, egui::TextureHandle>,
+    image_urls: &[String],
+    skip_first: bool,
+) {
+    let available_width = ui.available_width();
+    let target_image_width = 200.0;
+    let num_columns = (available_width / target_image_width).floor().max(1.0) as usize;
 
+    egui::Grid::new("responsive_image_grid")
+        .num_columns(num_columns)
+        .spacing([10.0, 10.0])
+        .show(ui, |ui| {
+            for (index, url) in image_urls.iter().enumerate().skip(if skip_first { 1 } else { 0 }) {
+                if let Some(texture_handle) = images.get(url) {
+                    let size = texture_handle.size_vec2();
+                    let aspect_ratio = size.x / size.y;
+                    let image_width = available_width / num_columns as f32 - 10.0;
+                    let image_height = image_width / aspect_ratio;
+                    ui.image(texture_handle.id(), [image_width, image_height]);
+                }
+                if (index + 1) % num_columns == 0 {
+                    ui.end_row();
+                }
+            }
+        });
+}
+
+// Show image grid for detailed view
 pub fn show_image_grid_for_detailed_view(ui: &mut egui::Ui, app: &WarThunderCamoInstaller) {
     if let Some(current_camo) = &app.current_camo {
         let images = app.images.lock().unwrap();
@@ -186,7 +217,6 @@ pub fn show_image_grid_for_detailed_view(ui: &mut egui::Ui, app: &WarThunderCamo
             return;
         }
 
-        // Display the first image as the avatar in original size
         if let Some(avatar_url) = current_camo.image_urls.first() {
             if let Some(texture_handle) = images.get(avatar_url) {
                 let size = texture_handle.size_vec2();
@@ -194,24 +224,33 @@ pub fn show_image_grid_for_detailed_view(ui: &mut egui::Ui, app: &WarThunderCamo
             }
         }
 
-        let available_width = ui.available_width();
-        let image_width = 150.0;
-        let num_columns = (available_width / image_width).floor() as usize;
+        ui.add_space(10.0);
 
-        egui::Grid::new("image_grid_for_detailed_view")
-            .num_columns(num_columns)
-            .spacing([10.0, 10.0])
-            .striped(true)
-            .show(ui, |ui| {
-                for url in &current_camo.image_urls[1..] { // Skip the avatar
-                    if let Some(texture_handle) = images.get(url) {
-                        let size = texture_handle.size_vec2();
-                        let aspect_ratio = size.x / size.y;
-                        let scaled_height = image_width / aspect_ratio;
-                        ui.image(texture_handle.id(), [image_width, scaled_height]);
-                    }
-                }
-            });
+        responsive_image_grid(ui, &images, &current_camo.image_urls, true);
+    } else {
+        ui.label("No camouflage selected.");
+    }
+}
+
+// Show image grid for main view
+pub fn show_image_grid_for_main_view(ui: &mut egui::Ui, app: &WarThunderCamoInstaller) {
+    if let Some(current_camo) = &app.current_camo {
+        let images = app.images.lock().unwrap();
+        if images.is_empty() {
+            ui.label("No images to display.");
+            return;
+        }
+
+        if let Some(avatar_url) = current_camo.image_urls.first() {
+            if let Some(texture_handle) = images.get(avatar_url) {
+                let size = texture_handle.size_vec2();
+                ui.image(texture_handle.id(), size);
+            }
+        }
+
+        ui.add_space(10.0);
+
+        responsive_image_grid(ui, &images, &current_camo.image_urls, true);
     } else {
         ui.label("No camouflage selected.");
     }
