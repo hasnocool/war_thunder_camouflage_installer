@@ -1,24 +1,37 @@
-**1. Project Name:** War_Thunder_Camouflage_Installer
-**2. Short Description:** A Rust-based program designed to download and install custom camouflage skins for the video game War Thunder.
-**3. Overall Description:** The War_Thunder_Camouflage_Installer is a user-friendly tool that enables players to easily obtain and apply unique skins to their vehicles in War Thunder. This project utilizes the reqwest library for HTTP requests, zip for file manipulation, and std::fs for interacting with the operating system's file system. By providing an intuitive interface, this program empowers users to personalize their gaming experience without requiring extensive technical knowledge.
-**4. Main Purpose:** I built this to make it easier for War Thunder players to find and install custom skins from various online sources, reducing the hassle associated with manual downloading and installation processes.
-**5. Key Technologies:**
-	* Rust programming language
-	* reqwest library for HTTP requests
-	* zip library for file manipulation
-	* std::fs for interacting with the operating system's file system
-**6. Unique Features:**
-	* Customizable directory structure settings to organize skins in a user-defined manner
-	* Automatic skin installation from ZIP files, eliminating the need for manual extraction and placement
-	* Integration with War Thunder's online features, enabling seamless updates and access to new content
-**7. Future Improvements:**
-	- Enhance user interface for better usability and feedback
-	- Integrate with other game platforms or services (e.g., World of Tanks)
-	- Implement advanced error handling and logging mechanisms
-**8. Personal Notes:** As someone who's passionate about gaming and programming, I'm excited to see how this project can benefit the War Thunder community. I hope to expand its features and compatibility in the future.
-**9. GitHub Tags:** war-thunder, camouflage installer, rust program, custom skins, game customization, easy installation, reqwest, zip library, std::fs, customizable directory structure, user-friendly interface
+Here's a structured summary of your project based on the provided code:
 
-# Extractable Variables
-SHORT_DESCRIPTION = "A Rust-based program designed to download and install custom camouflage skins for the video game War Thunder. 3. Overall Description: The War_Thunder_Camouflage_Installer is a user-friendly tool that enables players to easily obtain and apply unique skins to their vehicles in War Thunder. This project utilizes the reqwest library for HTTP requests, zip for file manipulation, and std::fs for interacting with the operating system's file system. By providing an intuitive interface, this program empowers users to personalize their gaming experience without requiring extensive technical knowledge. 4. Main Purpose: I built this to make it easier for War Thunder players to find and install custom skins from various online sources, reducing the hassle associated with manual downloading and installation processes. 5. Key Technologies: Rust programming language reqwest library for HTTP requests zip library for file manipulation std::fs for interacting with the operating system's file system 6. Unique Features: Customizable directory structure settings to organize skins in a user-defined manner Automatic skin installation from ZIP files, eliminating the need for manual extraction and placement Integration with War Thunder's online features, enabling seamless updates and access to new content 7. Future Improvements: - Enhance user interface for better usability and feedback - Integrate with other game platforms or services (e.g., World of Tanks) - Implement advanced error handling and logging mechanisms 8. Personal Notes: As someone who's passionate about gaming and programming, I'm excited to see how this project can benefit the War Thunder community. I hope to expand its features and compatibility in the future. 9. GitHub Tags: war-thunder, camouflage installer, rust program, custom skins, game customization, easy installation, reqwest, zip library, std::fs, customizable directory structure, user-friendly interface"
-OVERALL_DESCRIPTION = "The War_Thunder_Camouflage_Installer is a user-friendly tool that enables players to easily obtain and apply unique skins to their vehicles in War Thunder. This project utilizes the reqwest library for HTTP requests, zip for file manipulation, and std::fs for interacting with the operating system's file system. By providing an intuitive interface, this program empowers users to personalize their gaming experience without requiring extensive technical knowledge. 4. Main Purpose: I built this to make it easier for War Thunder players to find and install custom skins from various online sources, reducing the hassle associated with manual downloading and installation processes. 5. Key Technologies: Rust programming language reqwest library for HTTP requests zip library for file manipulation std::fs for interacting with the operating system's file system 6. Unique Features: Customizable directory structure settings to organize skins in a user-defined manner Automatic skin installation from ZIP files, eliminating the need for manual extraction and placement Integration with War Thunder's online features, enabling seamless updates and access to new content 7. Future Improvements: - Enhance user interface for better usability and feedback - Integrate with other game platforms or services (e.g., World of Tanks) - Implement advanced error handling and logging mechanisms 8. Personal Notes: As someone who's passionate about gaming and programming, I'm excited to see how this project can benefit the War Thunder community. I hope to expand its features and compatibility in the future. 9. GitHub Tags: war-thunder, camouflage installer, rust program, custom skins, game customization, easy installation, reqwest, zip library, std::fs, customizable directory structure, user-friendly interface"
-GITHUB_TAGS = "war-thunder, camouflage installer, rust program, custom skins, game customization, easy installation, reqwest, zip library, std::fs, customizable directory structure, user-friendly interface"
+1. **Project Name:** War Thunder Camouflage Installer
+2. **Short Description:** A Rust-based application designed to install and manage camouflage skins for the video game War Thunder.
+3. **Overall Description:** The War Thunder Camouflage Installer is a user-friendly tool that allows players to download, install, and manage their preferred camouflage skins within the game. It leverages advanced technologies such as Rust's concurrency features and the `reqwest` library for making HTTP requests. Additionally, it utilizes the `zip` crate to handle ZIP archives.
+4. **Main Purpose:** The primary purpose of this project is to provide an easy-to-use interface for War Thunder players to manage their camouflage skins.
+5. **Key Technologies:**
+   - Rust programming language
+   - `reqwest` library for making HTTP requests
+   - `zip` crate for handling ZIP archives
+6. **Unique Features:**
+   - Custom directory structure settings application feature
+   - Skin installation through a separate thread, allowing concurrent execution
+7. **Future Improvements:**
+   - Enhance error handling and reporting mechanisms
+   - Implement support for additional camouflage formats (if any)
+8. **Personal Notes:** The project code appears to be well-structured and follows best practices. However, it would be beneficial to add more comments and documentation throughout the code.
+9. **GitHub Tags:** warthunder, camouflager, installer, rust, reqwest, zip, concurrency, user-friendly, video-game
+10. **Installable Modules:**
+    - `reqwest`
+    - `zip`
+11. **Suggested Folder Names:** war-thunder, camouflage-skins, installer-code, config-files
+12. **Root Project Folder Name Suggestions:** WarThunderCamouflageInstaller, CamoManager, WTInstaller
+
+# Extracted Variables:
+PROJECT_NAME = "War Thunder Camouflage Installer"
+SHORT_DESCRIPTION = "A Rust-based application designed to install and manage camouflage skins for the video game War Thunder."
+OVERALL_DESCRIPTION = "The War Thunder Camouflage Installer is a user-friendly tool that allows players to download, install, and manage their preferred camouflage skins within the game. It leverages advanced technologies such as Rust's concurrency features and the `reqwest` library for making HTTP requests. Additionally, it utilizes the `zip` crate to handle ZIP archives."
+MAIN_PURPOSE = "The primary purpose of this project is to provide an easy-to-use interface for War Thunder players to manage their camouflage skins."
+KEY_TECHNOLOGIES = "Rust programming language, `reqwest` library for making HTTP requests, `zip` crate for handling ZIP archives"
+UNIQUE_FEATURES = "Custom directory structure settings application feature, Skin installation through a separate thread, allowing concurrent execution"
+FUTURE_IMPROVEMENTS = "Enhance error handling and reporting mechanisms, Implement support for additional camouflage formats (if any)"
+PERSONAL_NOTES = "The project code appears to be well-structured and follows best practices. However, it would be beneficial to add more comments and documentation throughout the code."
+GITHUB_TAGS = "warthunder, camouflager, installer, rust, reqwest, zip, concurrency, user, friendly, video, game"
+INSTALLABLE_MODULES = "`reqwest`, `zip`"
+SUGGESTED_FOLDER_NAMES = "war, thunder, camouflage, skins, installer, code, config, files"
+ROOT_PROJECT_FOLDER_NAME_SUGGESTIONS = "WarThunderCamouflageInstaller, CamoManager, WTInstaller"
